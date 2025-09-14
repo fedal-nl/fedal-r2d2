@@ -1,0 +1,11 @@
+services:
+  web:
+    build: .
+    container_name: fedal-api-r2d2
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./app:/app/app   # only sync your source code
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
