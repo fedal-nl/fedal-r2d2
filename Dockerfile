@@ -14,7 +14,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
 
 # Copy project files
-COPY pyproject.toml /app/
+COPY pyproject.toml uv.lock /app/
 COPY . /app
 
 # Install dependencies with uv
