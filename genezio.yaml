@@ -1,0 +1,19 @@
+name: fedal-r2d2
+region: eu-central-1
+yamlVersion: 2
+services:
+    databases:
+        - name: my-postgres-db
+          type: postgres-neon
+backend:
+    path: .
+    language:
+        name: python
+        packageManager: pip
+        runtime: python3.13.x
+    functions:
+        - name: fastapi
+          path: .
+          handler: app
+          entry: app/main.py
+          type: httpServer
