@@ -3,7 +3,7 @@ region: eu-central-1
 yamlVersion: 2
 services:
     databases:
-        - name: my-postgres-db
+        - name: fedalapi-r2d2
           type: postgres-neon
 backend:
     path: .
@@ -15,5 +15,5 @@ backend:
         - name: fastapi
           path: .
           handler: app
-          entry: app/main.py
+          entry: main.py
           type: httpServer

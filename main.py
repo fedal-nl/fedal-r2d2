@@ -1,6 +1,23 @@
-def main():
-    print("Hello from fedal-r2d2!")
+# app/main.py
+import logging
+from fastapi import FastAPI
+from configs.logs import setup_logging
+from routers import email
 
 
-if __name__ == "__main__":
-    main()
+# Setup logging
+setup_logging()
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="R2D2 API", version="0.0.2")
+
+# Include routers
+app.include_router(email.router, prefix="/email", tags=["Email"])
+
+@app.get("/")
+def read_root():
+    return {"message": "Hello R2D2 services"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
