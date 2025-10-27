@@ -27,6 +27,7 @@ class EmailService:
         self.from_email = os.getenv("FROM_EMAIL", "")
         self.to_email = os.getenv("TO_EMAIL", "")
 
+    # TODO: implement proper throttling mechanism
     async def _can_send(self) -> bool:
         """Throttle: allow only X emails per minute"""
         one_minute_ago = datetime.datetime.now(datetime.timezone.utc) - THROTTLE_WINDOW
@@ -37,36 +38,27 @@ class EmailService:
 
         return result < THROTTLE_LIMIT
 
-    async def send_email(self, sender: str, subject: str, content: str):
+    async def send_email(self, email_log: EmailLog):
         """Send an email and log the result."""
         # Throttle check
+        logger.debug("Performing throttle check before sending email with id %d", email_log.id)
         if not await self._can_send():
             raise exceptions.EmailRateLimitException("Email send rate limit exceeded.")
 
-        # prepare email
-        message = EmailMessage()
-        message["From"] = f"{self.from_email}"
-        message["To"] = self.to_email
-        message["Subject"] = f"Form submit from {sender}: {subject}"
-        message["Reply-To"] = sender
-        message.set_content(content)
-
-        logger.info("Sending email from %s to %s with subject '%s'", sender, self.to_email, subject)
-
-        # log initial entry
-        log_entry = EmailLog(
-            sender=sender,
-            receiver=self.to_email,
-            subject=subject,
-            status=EmailStatus.PENDING
-        )
-        logger.debug("Created email log entry: %s", log_entry)
-
-        # add log entry to the database
-        self.db.add(log_entry)
-        self.db.commit()
-
+        logger.info("Preparing to send email with id %d", email_log.id)
         try:
+            # prepare email
+            message = EmailMessage()
+            message["From"] = f"{self.from_email}"
+            message["To"] = self.to_email
+            message["Subject"] = f"Form submit from {email_log.sender}: {email_log.subject}"
+            message["Reply-To"] = email_log.sender
+            message.set_content(email_log.body or "")
+
+            logger.info("Sending email id %d", email_log.id)
+            email_log.status = EmailStatus.SENDING
+            # log initial entry
+
             # send email
             await aiosmtplib.send(
                 message,
@@ -76,24 +68,23 @@ class EmailService:
                 password=self.smtp_pass,
                 start_tls=True
             )
-            log_entry.status = EmailStatus.SENT # type: ignore
-            logger.info("Email sent successfully from %s to %s", sender, self.to_email)
+            email_log.status = EmailStatus.SENT
+            logger.info("Email ID: %d sent successfully", email_log.id)
         except Exception as e:
-            log_entry.status = EmailStatus.FAILED # type: ignore
-            log_entry.error_message = str(e)  # type: ignore
-            logger.error("Failed to send email from %s to %s: %s", sender, self.to_email, e)
+            email_log.status = EmailStatus.FAILED
+            email_log.error_message = str(e)  # type: ignore
+            logger.error("Failed to send email ID %d: %s", email_log.id, e)
             raise exceptions.EmailSendException(f"Failed to send email: {e}")
         finally:
-            self.db.add(log_entry)
-            logger.debug("Updating email log entry: %s", log_entry)
-
-            # commit the email log entry
+            self.db.add(email_log)
+            logger.debug("Updating email log entry: %s", email_log.__dict__)
             self.db.commit()
+            logger.debug("Finalized email ID: %s", email_log.id)
 
-    def get_sent_emails(self):
-        """Retrieve all sent emails."""
-        sent_emails = self.db.query(EmailLog).filter(EmailLog.status == EmailStatus.SENT).all()
-        logger.info("Retrieved %d sent emails", len(sent_emails))
+    def get_sent_emails_by_status(self, status: EmailStatus):
+        """Retrieve all sent emails by status."""
+        sent_emails = self.db.query(EmailLog).filter(EmailLog.status == status).all()
+        logger.info("Retrieved %d sent emails with status %s", len(sent_emails), status)
         return sent_emails
     
     def get_all_emails(self):
@@ -110,3 +101,18 @@ class EmailService:
             return email.status
         logger.warning("Email with id %d not found", email_id)
         return None
+
+    def queue_new_email_log(self, sender: str, subject: str, message: str):
+        """Save a new email log entry with the status to Pending. This will be used before sending the email. by a queue system."""
+        log_entry = EmailLog(
+            body=message,
+            sender=sender,
+            receiver=self.to_email,
+            subject=subject,
+            status=EmailStatus.QUEUED,
+            error_message=None
+        )
+        self.db.add(log_entry)
+        self.db.commit()
+        logger.info("Stored email log entry: %s with message: %s", log_entry, message)
+        return log_entry
