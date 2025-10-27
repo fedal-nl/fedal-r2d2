@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class EmailStatus(str, Enum):
-    PENDING = "PENDING"
+    SENDING = "SENDING"
     SENT = "SENT"
     FAILED = "FAILED"
+    QUEUED = "QUEUED"
