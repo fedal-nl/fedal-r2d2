@@ -2,7 +2,7 @@
 import logging
 from fastapi import FastAPI
 from configs.logs import setup_logging
-from routers import email
+from routers import email, form
 
 
 # Setup logging
@@ -13,6 +13,7 @@ app = FastAPI(title="R2D2 API", version="0.0.2")
 
 # Include routers
 app.include_router(email.router, prefix="/email", tags=["Email"])
+app.include_router(form.router, prefix="/forms", tags=["Forms"])
 
 @app.get("/")
 def read_root():

@@ -7,7 +7,7 @@ from sqlalchemy import pool
 
 from alembic import context
 from configs.db import Base  # Ensure your models are imported here to populate metadata
-from models import email_log  # Example model import
+from models import email_log, form  # Example model import
 
 env_file = os.getenv("ENV_FILE", ".env")
 load_dotenv(dotenv_path=env_file, override=True)
