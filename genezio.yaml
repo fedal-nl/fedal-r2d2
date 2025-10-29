@@ -5,13 +5,6 @@ services:
     databases:
         - name: fedalapi-r2d2
           type: postgres-neon
-    crons:
-        - name: send_queued_emails
-        #   function: ${{backend.functions.fastapi.name}}
-          function: ${{backend.functions.send-email-cron.name}}
-          schedule: "* * * * *"   # every minute
-        #   endpoint: "/email/cronjob-send-queued-emails?token=${{env.API_TOKEN}}"
-
 backend:
     path: .
     language:
@@ -24,11 +17,3 @@ backend:
           handler: app
           entry: main.py
           type: httpServer
-        - name: send-email-cron
-          path: .
-          entry: crons/send_email.py
-          type: persistent
-        # - name: send_email
-        #   entry: crons/send_email.py
-        #   path: .
-        #   type: cron

@@ -6,3 +6,9 @@ class EmailStatus(str, Enum):
     SENT = "SENT"
     FAILED = "FAILED"
     QUEUED = "QUEUED"
+
+class FormStatus(str, Enum):
+    NEW = "NEW"
+    IN_PROGRESS = "IN_PROGRESS"
+    VIEWED = "VIEWED"
+    ARCHIVED = "ARCHIVED"
