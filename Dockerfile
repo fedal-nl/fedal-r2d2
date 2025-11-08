@@ -1,5 +1,19 @@
 FROM python:3.13-slim
 
+# Install system dependencies and packages like curl, vim, less postgresql-client, build-essential, ping
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    vim \
+    less \
+    postgresql-client \
+    iputils-ping \
+    netcat-openbsd \
+    tree \
+    bsdmainutils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1

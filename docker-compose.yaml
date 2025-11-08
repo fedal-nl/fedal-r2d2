@@ -1,4 +1,15 @@
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - api
+    networks:
+      - webnet
   api:
     build:
       context: .
@@ -11,5 +22,10 @@ services:
       - .env
     ports:
       - "8000:8000"
+    networks:
+      - webnet
 
-version: "3.9"
+
+networks:
+  webnet:
+    driver: bridge
