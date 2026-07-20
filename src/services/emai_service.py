@@ -3,12 +3,12 @@ import logging
 import aiosmtplib
 from email.message import EmailMessage
 from sqlalchemy.orm import Session
-from models.email_log import EmailLog
+from src.models.email_log import EmailLog
 import datetime
-from enums import EmailStatus
+from src.enums import EmailStatus
 from dotenv import load_dotenv
 import os
-import exceptions as exceptions
+import src.exceptions as exceptions
 
 load_dotenv()
 

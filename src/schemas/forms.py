@@ -7,7 +7,7 @@ These schemas ensure data validation and serialization for API requests and resp
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
-from enums import FormStatus
+from src.enums import FormStatus
 
 class ZaansrechtFormCreate(BaseModel):
     full_name: str

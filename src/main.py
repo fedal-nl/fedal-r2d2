@@ -2,15 +2,15 @@
 import logging
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from configs.logs import setup_logging
-from routers import email, form
+from src.configs.logs import setup_logging
+from src.routers import email, form
 
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="R2D2 API", version="0.0.3")
+app = FastAPI(title="R2D2 API", version="0.0.4")
 
 
 # Include CORS middleware
