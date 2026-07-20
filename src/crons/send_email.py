@@ -1,19 +1,20 @@
 # app/cron/send_email.py
 import asyncio
 import logging
+from typing import Optional
 from sqlalchemy.orm import Session
-from configs.db import get_db as get_db_session
-from services.emai_service import EmailService
-from models.email_log import EmailLog
-from enums import EmailStatus
+from src.configs.db import get_db as get_db_session
+from src.services.emai_service import EmailService
+from src.models.email_log import EmailLog
+from src.enums import EmailStatus
 
 logger = logging.getLogger(__name__)
 
-async def send_queued_emails(db: Session = None):
+async def send_queued_emails(db: Optional[Session] = None):
     """Send all queued emails."""
     close_db = False
     if db is None:
-        db = get_db_session()
+        db = next(get_db_session())
         close_db = True
     try:
         email_service = EmailService(db)

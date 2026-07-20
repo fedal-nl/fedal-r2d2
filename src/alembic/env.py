@@ -1,13 +1,19 @@
 import os
+
 from dotenv import load_dotenv
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
+
 from alembic import context
-from configs.db import Base  # Ensure your models are imported here to populate metadata
-from models import email_log, form  # Example model import
+from src.configs.db import Base  # Ensure your models are imported here to populate metadata
+from src.models import email_log, form  # Example model import
+from src.dictionary import models  # Import spanglish models to include in metadata
+from src.auth import models as auth_models  # Import auth models to include in metadata
+from src.ai import models as ai_models  # Import AI models to include in metadata
+
 
 env_file = os.getenv("ENV_FILE", ".env")
 load_dotenv(dotenv_path=env_file, override=True)

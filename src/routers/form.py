@@ -4,12 +4,12 @@ It leverages the FormService for business logic and database interactions.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from schemas.forms import ZaansrechtFormCreate, ZaansrechtFormResponse, FormStatusUpdate, FormListResponse
+from src.schemas.forms import ZaansrechtFormCreate, ZaansrechtFormResponse, FormStatusUpdate, FormListResponse
 from sqlalchemy.orm import Session
-from configs.db import get_db
-from dependencies.auth import verify_captcha_token
-from services.form_service import FormService, FormSubmissionLogService
-from enums import FormStatus
+from src.configs.db import get_db
+from src.dependencies.auth import verify_captcha_token
+from src.services.form_service import FormService, FormSubmissionLogService
+from src.enums import FormStatus
 import logging
 
 logger = logging.getLogger(__name__)

@@ -2,12 +2,12 @@
 import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
-from configs.db import get_db
+from src.configs.db import get_db
 
-from services.emai_service import EmailService
-from enums import EmailStatus
-from dependencies.auth import validate_token
-from crons.send_email import send_queued_emails
+from src.services.emai_service import EmailService
+from src.enums import EmailStatus
+from src.dependencies.auth import validate_token
+# from src.crons.send_email import send_queued_emails
 
 logger = logging.getLogger(__name__)
 

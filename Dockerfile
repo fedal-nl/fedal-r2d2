@@ -28,7 +28,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
 
 # Copy project files
-COPY pyproject.toml /app/
+COPY pyproject.toml /app
 COPY . /app
 
 # Install dependencies with uv
@@ -38,4 +38,4 @@ RUN uv sync --no-dev --frozen --link-mode=copy
 EXPOSE 8000
 
 # Run FastAPI with uvicorn via ASGI
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
