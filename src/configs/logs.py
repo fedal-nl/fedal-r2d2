@@ -2,8 +2,7 @@ import os
 import logging
 import logging.config
 
-### THIS IS REQUIRED FOR GENEZIO SERVERLESS ENVIRONMENTS ###
-# Detect if running in a read-only environment (serverless)
+# Keep file logging functional in read-only runtime environments.
 if os.access(os.getcwd(), os.W_OK):
     BASE_DIR = os.getcwd()  # local dev: project root
 else:

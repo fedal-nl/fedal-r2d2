@@ -16,11 +16,12 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 from src.enums import SocialMediaPlatformEnum
 
-from src.configs.db import Base
+from src.core.database import Base
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username: Mapped[str] = mapped_column(String, nullable=False, unique=True)
@@ -51,7 +52,7 @@ class SocialProvider(Base):
     __tablename__ = "social_providers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True)
     platform: Mapped[SocialMediaPlatformEnum] = mapped_column(
         Enum(SocialMediaPlatformEnum, name="social_media_platform_enum"),
         nullable=False
@@ -66,4 +67,5 @@ class SocialProvider(Base):
     # add a constraint to ensure a user cannot link the same social media account multiple times
     __table_args__ = (
         UniqueConstraint("platform", "platform_user_id", name="uq_platform_user"),
+        {"schema": "public"},
     )

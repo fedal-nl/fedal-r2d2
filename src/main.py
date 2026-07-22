@@ -3,7 +3,8 @@ import logging
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from src.configs.logs import setup_logging
-from src.routers import email, form
+from src.modules.email import routers as email
+from src.modules.forms import routers as form
 
 
 # Setup logging
@@ -29,6 +30,7 @@ api_router.include_router(email.router, prefix="/email", tags=["Email"])
 api_router.include_router(form.router, prefix="/forms", tags=["Forms"])
 
 app.include_router(api_router)
+
 
 @app.get("/")
 def read_root():

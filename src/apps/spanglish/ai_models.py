@@ -11,10 +11,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import UUID
-
 from src.enums import AIAgentEnum
-from src.configs.db import Base
+from src.core.database import Base
 
 
 # =========================
@@ -23,6 +21,7 @@ from src.configs.db import Base
 
 class AIAgent(Base):
     __tablename__ = "ai_agents"
+    __table_args__ = {"schema": "spanglish"}
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -52,10 +51,11 @@ class AIAgent(Base):
 
 class AIUsage(Base):
     __tablename__ = "ai_usage"
+    __table_args__ = {"schema": "spanglish"}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    ai_agent_id: Mapped[int] = mapped_column(ForeignKey("ai_agents.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("public.users.id"), nullable=False, index=True)
+    ai_agent_id: Mapped[int] = mapped_column(ForeignKey("spanglish.ai_agents.id"), nullable=False)
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False)
     cost: Mapped[float] = mapped_column(Float, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

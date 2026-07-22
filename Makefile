@@ -1,13 +1,12 @@
-.PHONY: run
+.DEFAULT_GOAL := help
+
+.PHONY: help up down deploy prod-down prod-logs test lint migrate upgrade downgrade current history stamp clean
+
+PROD_COMPOSE := docker compose -f docker-compose.prod.yaml
 
 # ---------------------------------
 # Application start command
 # ---------------------------------
-# Variables
-IMAGE_NAME=fedal-r2d2-api
-
-.PHONY: up build build-tag
-
 # Development: run container with live-reload
 up:
 	docker compose up
@@ -15,29 +14,32 @@ up:
 down:
 	docker compose down
 
-# Build image (latest tag)
-build:
-	docker compose build
+# Production: stop the current stack, pull the published image, and restart it.
+deploy:
+	$(PROD_COMPOSE) down
+	$(PROD_COMPOSE) pull
+	$(PROD_COMPOSE) up -d
 
-# Build image with custom tag
-build-tag:
-ifndef TAG
-	$(error TAG is not set. Usage: make build-tag TAG=v1.0.0)
-endif
-	docker compose build
-	docker tag $(IMAGE_NAME):latest $(IMAGE_NAME):$(TAG)
+prod-down:
+	$(PROD_COMPOSE) down
+
+prod-logs:
+	$(PROD_COMPOSE) logs -f api
+
 # ---------------------------------
 # Alembic migration commands
 # ---------------------------------
 # To run migrations. first generate a new migration script:
 migrate:
-	uv run alembic revision --autogenerate -m "<migration_message>"
+	@test -n "$(MESSAGE)" || (echo "Usage: make migrate MESSAGE='migration message'" && exit 1)
+	uv run alembic revision --autogenerate -m "$(MESSAGE)"
 # Then apply the migration: (Optional with envfile): ENV_FILE=.env.prod uv run alembic upgrade head
 upgrade:
 	uv run alembic upgrade head
 # To downgrade to a previous migration:
 downgrade:
-	uv run alembic downgrade <revision_id>
+	@test -n "$(REVISION)" || (echo "Usage: make downgrade REVISION=<revision_id>" && exit 1)
+	uv run alembic downgrade $(REVISION)
 # To view current revision:
 current:
 	uv run alembic current
@@ -46,13 +48,21 @@ history:
 	uv run alembic history --verbose
 # To stamp the database with a specific revision without running migrations:
 stamp:
-	uv run alembic stamp <revision_id>
+	@test -n "$(REVISION)" || (echo "Usage: make stamp REVISION=<revision_id>" && exit 1)
+	uv run alembic stamp $(REVISION)
+
+test:
+	uv run pytest -q
+
+lint:
+	uv run ruff check src tests
 
 # ---------------------------------
 # Clean Python cache
 # ---------------------------------
 clean:
-	rm -rf __pycache__ */__pycache__ */*/__pycache__ *.pyc *.pyo
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 
 # ---------------------------------
 # Help
@@ -61,10 +71,16 @@ help:
 	@echo "Available make commands:"
 	@echo "  make up          - Run the api application with Docker Compose"
 	@echo "  make down        - Stop the Docker Compose services"
-	@echo "  make build       - Build the Docker image (latest tag)"
-	@echo "  make build-tag   - Build the Docker image with a custom tag (usage: make build-tag TAG=v1.0.0)"
+	@echo "  make deploy      - Down, pull, and start the production image"
+	@echo "  make prod-down   - Stop the production Compose services"
+	@echo "  make prod-logs   - Follow production API logs"
 	@echo "  make test        - Run tests with pytest"
+	@echo "  make lint        - Run Ruff checks"
 	@echo "  make migrate     - Generate Alembic migration"
 	@echo "  make upgrade     - Apply Alembic migrations"
+	@echo "  make downgrade   - Downgrade with REVISION=<revision_id>"
+	@echo "  make current     - Show the current Alembic revision"
+	@echo "  make history     - Show Alembic migration history"
+	@echo "  make stamp       - Stamp with REVISION=<revision_id>"
 	@echo "  make clean       - Remove Python cache files"
 	@echo "  make help        - Show this help message"
