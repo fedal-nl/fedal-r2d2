@@ -49,7 +49,7 @@ class ResendEmailProvider:
         # delivery atomic so concurrent applications cannot exchange keys.
         with _resend_lock:
             resend.api_key = self.api_key
-            response = resend.Emails.send(**payload)
+            response = resend.Emails.send(payload)
         return str(response["id"])
 
 
