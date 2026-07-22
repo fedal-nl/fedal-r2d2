@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # Install system dependencies and packages like curl, vim, less postgresql-client, build-essential, ping
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+LABEL org.opencontainers.image.source=https://github.com/fedal-nl/fedal-r2d2
 # Install uv
 RUN pip install uv
 

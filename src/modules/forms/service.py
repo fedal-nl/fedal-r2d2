@@ -4,10 +4,12 @@ It includes functionalities for different types of forms, such as ZaansrechtForm
 Also it provides methods to query and manipulate form data stored in the database.
 Besides basic CRUD operations, it uses the email service to send notifications based on form submissions.
 """
+from datetime import datetime
+
 from sqlalchemy.orm import Session
-from src.models.form import ZaansrechtForm, FormSubmissionLog
+from src.modules.forms.models import ZaansrechtForm, FormSubmissionLog
 from src.enums import FormStatus
-from src.services.emai_service import EmailService
+from src.modules.email.service import EmailMessage, EmailService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,7 @@ class FormService:
             telephone: str|None = None,
             description: str|None = None,
             subject: str|None = None,
-            meeting_datetime: str|None = None,
+            meeting_datetime: datetime | None = None,
             meeting_type: str|None = None
         ) -> ZaansrechtForm:
         """Create and save a new Zaansrecht form submission."""
@@ -73,16 +75,23 @@ class FormService:
     def send_form_notification(self, form: ZaansrechtForm):
         """Send a notification email upon form submission."""
         email_service = EmailService(self.db)
-        subject = f"New Zaansrecht Form Submission from {form.subject}"
-        default_body = f"A new Zaansrecht form has been submitted.\n\nDetails:\nName: {form.full_name}\nEmail: {form.email}\n"
-        body = default_body if form.description is None else f"Description: {form.description}\n"
-        
-        email_service.queue_new_email_log(
-            sender=str(form.email),
-            subject=subject,
-            message=body
+        subject = f"New Zaansrecht form submission: {form.subject or 'No subject'}"
+        body = (
+            "A new Zaansrecht form has been submitted.\n\n"
+            f"Name: {form.full_name}\n"
+            f"Email: {form.email}\n"
+            f"Telephone: {form.telephone or '-'}\n"
+            f"Description: {form.description or '-'}\n"
         )
-        logger.info("Queued notification email for form ID %d", form.id)
+
+        log = email_service.send(EmailMessage(
+            application="zaansrecht",
+            reply_to=str(form.email),
+            subject=subject,
+            text=body,
+        ))
+        logger.info("Processed notification email %d for form %d", log.id, form.id)
+        return log
 
 
 class FormSubmissionLogService:

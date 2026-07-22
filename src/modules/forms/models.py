@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import Integer, String, DateTime, Text, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import INET, ARRAY
-from src.configs.db import Base
+from src.core.database import Base
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from src.enums import FormStatus
 
@@ -19,6 +19,7 @@ class BaseForm(Base):
 
 class ZaansrechtForm(BaseForm):
     __tablename__ = "zaansrecht_form"
+    __table_args__ = {"schema": "public"}
 
     terms_accepted: Mapped[bool] = mapped_column(Boolean, nullable=False)
     telephone: Mapped[str|None] = mapped_column(String, nullable=True)
@@ -37,10 +38,11 @@ class ZaansrechtForm(BaseForm):
 # The form will be linked to this table via a foreign key.
 class FormSubmissionLog(Base):
     __tablename__ = "form_submission_log"
+    __table_args__ = {"schema": "public"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     # foreign key to ZaansrechtForm
-    form_id: Mapped[int] = mapped_column(Integer, ForeignKey("zaansrecht_form.id"), nullable=False)
+    form_id: Mapped[int] = mapped_column(Integer, ForeignKey("public.zaansrecht_form.id"), nullable=False)
     user_agent: Mapped[str|None] = mapped_column(String, nullable=True)
     referrer: Mapped[str|None] = mapped_column(String, nullable=True)
     x_forwarded_for: Mapped[list[str]|None] = mapped_column(ARRAY(INET), nullable=True)

@@ -4,11 +4,11 @@ It leverages the FormService for business logic and database interactions.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from src.schemas.forms import ZaansrechtFormCreate, ZaansrechtFormResponse, FormStatusUpdate, FormListResponse
+from src.modules.forms.schemas import ZaansrechtFormCreate, ZaansrechtFormResponse, FormStatusUpdate, FormListResponse
 from sqlalchemy.orm import Session
-from src.configs.db import get_db
-from src.dependencies.auth import verify_captcha_token
-from src.services.form_service import FormService, FormSubmissionLogService
+from src.core.database import get_db
+from src.modules.recaptcha.service import verify_captcha_token
+from src.modules.forms.service import FormService, FormSubmissionLogService
 from src.enums import FormStatus
 import logging
 
@@ -52,6 +52,7 @@ async def create_zaansrecht_form(
             captcha_token=captcha_token
         )
         log_service.log_form_submission()
+        form_service.send_form_notification(created_form)
         return created_form
     except Exception as e:
         logger.error("Error creating Zaansrecht form: %s", e)

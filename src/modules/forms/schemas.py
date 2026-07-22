@@ -4,7 +4,7 @@ It includes schemas for Zaansrecht form submissions, form status updates, and re
 These schemas ensure data validation and serialization for API requests and responses.
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional
 from datetime import datetime
 from src.enums import FormStatus
@@ -20,6 +20,8 @@ class ZaansrechtFormCreate(BaseModel):
     meeting_type: Optional[str] = None  # e.g., 'in_person', 'virtual'
 
 class ZaansrechtFormResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     full_name: str
     email: EmailStr
@@ -33,13 +35,9 @@ class ZaansrechtFormResponse(BaseModel):
     meeting_datetime: Optional[datetime] = None
     meeting_type: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 class FormStatusUpdate(BaseModel):
     new_status: FormStatus
 
 
 class FormListResponse(BaseModel):
     forms: list[ZaansrechtFormResponse]
-
