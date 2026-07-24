@@ -100,6 +100,10 @@ make upgrade
 docker compose up
 ```
 
+The development Compose configuration rebuilds the API image when it starts, so
+new dependencies from `pyproject.toml` and `uv.lock` are installed automatically.
+The equivalent Make command is `make up`.
+
 The development Compose stack includes PostgreSQL 18 with a persistent
 `postgres_data` volume. The `.env` `DATABASE_URL` uses `localhost`, allowing
 host-side Alembic commands such as `make upgrade` to connect to it. Inside
@@ -131,7 +135,15 @@ make deploy
 
 The deployment command stops the existing production stack, pulls the image,
 and starts it in detached mode using `docker-compose.prod.yaml`. Production does
-not mount source files and does not enable Uvicorn reload.
+not mount source files and does not enable Uvicorn reload. The container still
+listens on port 8000 internally, but production publishes it on
+`127.0.0.1:8001` by default to avoid conflicts with other containers.
+
+To use another host port:
+
+```bash
+API_HOST_PORT=8010 make deploy
+```
 
 Deploy a specific immutable image version with:
 
@@ -146,8 +158,9 @@ GitHub token that has `read:packages` permission:
 docker login ghcr.io
 ```
 
-The API is available at <http://127.0.0.1:8000>, with interactive documentation
-at <http://127.0.0.1:8000/docs>.
+With the default production port, the API is available internally on the host at
+<http://127.0.0.1:8001>, with interactive documentation at
+<http://127.0.0.1:8001/docs>.
 
 The container uses Python 3.14.
 
