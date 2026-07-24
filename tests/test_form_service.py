@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.enums import FormStatus
 from src.modules.forms.models import ZaansrechtForm
 from src.modules.forms.service import FormService, FormSubmissionLogService
@@ -118,11 +120,37 @@ def test_form_notification_uses_general_email_service(monkeypatch) -> None:
     monkeypatch.setattr("src.modules.forms.service.EmailService", FakeEmailService)
     form = ZaansrechtForm(
         id=1,
-        full_name="Test",
+        full_name="Test <script>alert('x')</script>",
         email="reply@example.com",
         terms_accepted=True,
+        telephone="06-12345678",
         subject="Question",
+        description="A clear description",
+        meeting_datetime=datetime(2026, 7, 24, 14, 30),
+        meeting_type="virtual",
     )
     log = FormService(FakeSession()).send_form_notification(form)
     assert log.id == 12
-    assert captured["message"].application == "zaansrecht"
+    message = captured["message"]
+    assert message.application == "zaansrecht"
+    assert message.html is not None
+    assert "Verdana, Geneva, sans-serif" in message.html
+    assert "Test &lt;script&gt;" in message.html
+    assert "<script>alert" not in message.html
+    for expected in (
+        "Naam",
+        "E-mailadres",
+        "Telefoon",
+        "Onderwerp",
+        "Beschrijving",
+        "Afspraak",
+        "Type afspraak",
+        "Voorwaarden geaccepteerd",
+        "24-07-2026 14:30",
+        "06-12345678",
+        "A clear description",
+        "virtual",
+        "Ja",
+    ):
+        assert expected in message.html
+    assert "Naam: Test" in message.text

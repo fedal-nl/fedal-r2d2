@@ -10,14 +10,16 @@ from sqlalchemy.orm import Session
 from src.modules.forms.models import ZaansrechtForm, FormSubmissionLog
 from src.enums import FormStatus
 from src.modules.email.service import EmailMessage, EmailService
+from src.modules.email.templates import EmailTemplateRenderer
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class FormService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, template_renderer: EmailTemplateRenderer | None = None):
         self.db = db
+        self.template_renderer = template_renderer or EmailTemplateRenderer()
 
     def create_zaansrecht_form(
             self,
@@ -76,19 +78,34 @@ class FormService:
         """Send a notification email upon form submission."""
         email_service = EmailService(self.db)
         subject = f"New Zaansrecht form submission: {form.subject or 'No subject'}"
-        body = (
-            "A new Zaansrecht form has been submitted.\n\n"
-            f"Name: {form.full_name}\n"
-            f"Email: {form.email}\n"
-            f"Telephone: {form.telephone or '-'}\n"
-            f"Description: {form.description or '-'}\n"
+        meeting_datetime = (
+            form.meeting_datetime.strftime("%d-%m-%Y %H:%M")
+            if form.meeting_datetime
+            else "Niet opgegeven"
         )
+        fields = (
+            {"label": "Naam", "value": form.full_name},
+            {"label": "E-mailadres", "value": form.email},
+            {"label": "Telefoon", "value": form.telephone or "Niet opgegeven"},
+            {"label": "Onderwerp", "value": form.subject or "Niet opgegeven"},
+            {"label": "Beschrijving", "value": form.description or "Niet opgegeven"},
+            {"label": "Afspraak", "value": meeting_datetime},
+            {"label": "Type afspraak", "value": form.meeting_type or "Niet opgegeven"},
+            {"label": "Voorwaarden geaccepteerd", "value": "Ja" if form.terms_accepted else "Nee"},
+        )
+        html = self.template_renderer.render(
+            "modules/forms/templates/zaansrecht_email.html",
+            fields=fields,
+            email=str(form.email),
+        )
+        text = "\n".join(f"{field['label']}: {field['value']}" for field in fields)
 
         log = email_service.send(EmailMessage(
             application="zaansrecht",
             reply_to=str(form.email),
             subject=subject,
-            text=body,
+            text=text,
+            html=html,
         ))
         logger.info("Processed notification email %d for form %d", log.id, form.id)
         return log

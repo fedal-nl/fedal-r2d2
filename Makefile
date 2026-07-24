@@ -9,7 +9,7 @@ PROD_COMPOSE := docker compose -f docker-compose.prod.yaml
 # ---------------------------------
 # Development: run container with live-reload
 up:
-	docker compose up
+	docker compose up --build
 
 down:
 	docker compose down
@@ -69,7 +69,7 @@ clean:
 # ---------------------------------
 help:
 	@echo "Available make commands:"
-	@echo "  make up          - Run the api application with Docker Compose"
+	@echo "  make up          - Build and run the API with Docker Compose"
 	@echo "  make down        - Stop the Docker Compose services"
 	@echo "  make deploy      - Down, pull, and start the production image"
 	@echo "  make prod-down   - Stop the production Compose services"

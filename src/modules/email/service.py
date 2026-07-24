@@ -34,7 +34,7 @@ class ResendEmailProvider:
         self.api_key = api_key
 
     def send(self, *, sender: str, receiver: str, message: EmailMessage) -> str:
-        payload = {
+        payload: resend.Emails.SendParams = {
             "from": sender,
             "to": [receiver],
             "subject": message.subject,
