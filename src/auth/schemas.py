@@ -1,64 +1,46 @@
-"""
-This module defines the Pydantic schemas for user registration, login, and social authentication.
-"""
-from pydantic import BaseModel, EmailStr, Field, AnyUrl
-from uuid import UUID
-from src.enums import SocialMediaPlatformEnum
+"""Public contracts for local authentication."""
+
 from datetime import datetime
+from uuid import UUID
+
+from pydantic import AnyUrl, BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
-    """Schema for creating a new user."""
-    username: str = Field(..., min_length=3, max_length=50)
-    email: EmailStr | None = None
-    password: str | None = Field(..., min_length=6)
+    username: str = Field(min_length=3, max_length=50)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
     avatar_url: AnyUrl | None = None
-    user_metadata: dict | None = None
-    is_active: bool = True
 
 
 class UserRead(BaseModel):
-    """Schema for reading user information."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     username: str
-    email: EmailStr | None = None
-    avatar_url: AnyUrl | None = None
+    email: EmailStr | None
+    avatar_url: AnyUrl | None
     is_active: bool
     created_at: datetime
-    updated_at: datetime | None = None
-    last_login_at: datetime | None = None
-    user_metadata: dict | None = None
-
-    model_config = {
-        "from_attributes": True
-    }
+    last_login_at: datetime | None
 
 
-class UserUpdate(BaseModel):
-    """Schema for updating user information."""
-    username: str | None = Field(None, min_length=3, max_length=50)
-    email: EmailStr | None = None
-    password: str | None = Field(None, min_length=6)
-    avatar_url: AnyUrl | None = None
-    user_metadata: dict | None = None
-    is_active: bool | None = None
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    client_type: str | None = Field(default=None, max_length=30)
 
 
-class SocialProviderCreate(BaseModel):
-    """Schema for creating a new social authentication provider."""
-    platform: SocialMediaPlatformEnum
-    platform_user_id: str = Field(..., min_length=1)
-    user_id: UUID
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=32)
 
 
-class SocialProviderRead(BaseModel):
-    """Schema for reading social authentication provider information."""
-    id: int
-    platform: SocialMediaPlatformEnum
-    platform_user_id: str
-    user_id: UUID
-    created_at: datetime
+class LogoutRequest(RefreshRequest):
+    pass
 
-    model_config = {
-        "from_attributes": True
-    }
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int

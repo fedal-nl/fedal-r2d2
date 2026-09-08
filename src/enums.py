@@ -7,6 +7,7 @@ class EmailStatus(str, Enum):
     FAILED = "FAILED"
     QUEUED = "QUEUED"
 
+
 class FormStatus(str, Enum):
     NEW = "NEW"
     IN_PROGRESS = "IN_PROGRESS"
@@ -34,9 +35,11 @@ class CategoryEnum(str, Enum):
     PROFESSIONS = "Professions"
     PHRASES = "Phrases"
 
+
 class LanguageEnum(str, Enum):
     SPANISH = "Spanish"
     ENGLISH = "English"
+
 
 class AIAgentEnum(str, Enum):
     OPENAI = "OpenAI"
@@ -45,6 +48,7 @@ class AIAgentEnum(str, Enum):
     MISTRAL = "Mistral"
     XAI = "XAI"
     LLAMA = "LLaMA"
+
 
 class SocialMediaPlatformEnum(str, Enum):
     FACEBOOK = "Facebook"
@@ -60,9 +64,23 @@ class SocialMediaPlatformEnum(str, Enum):
     SPOTIFY = "Spotify"
     EMAIL = "Email"
 
+
 class VocabularyTypeEnum(str, Enum):
     PHRASE = "Phrase"
     WORD = "Word"
     SENTENCE = "Sentence"
     LYRIC = "Lyric"
-    
+
+
+class QuizSelectionMode(str, Enum):
+    """Control how vocabulary is selected for a generated quiz."""
+
+    RANDOM = "random"
+    SEQUENTIAL = "sequential"
+
+
+class QuizQuestionType(str, Enum):
+    """Identify the interaction expected for a quiz question."""
+
+    TRANSLATION = "translation"
+    CONJUGATION = "conjugation"

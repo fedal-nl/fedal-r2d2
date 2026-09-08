@@ -16,6 +16,11 @@ class Settings:
     email_to: str
     recaptcha_secret_key: str
     api_token: str | None
+    jwt_secret_key: str = ""
+    jwt_issuer: str = "fedal-r2d2"
+    jwt_audience: str = "fedal-r2d2-api"
+    access_token_minutes: int = 15
+    refresh_token_days: int = 30
     recaptcha_verify_url: str = "https://www.google.com/recaptcha/api/siteverify"
 
 
@@ -42,7 +47,9 @@ def get_email_profile(application: str) -> EmailProfile:
     values = {field: os.getenv(name, "") for field, name in variable_names.items()}
     missing = [name for field, name in variable_names.items() if not values[field]]
     if missing:
-        raise ValueError(f"Missing email configuration for '{normalized}': {', '.join(missing)}")
+        raise ValueError(
+            f"Missing email configuration for '{normalized}': {', '.join(missing)}"
+        )
 
     return EmailProfile(application=normalized, **values)
 
@@ -60,4 +67,9 @@ def get_settings() -> Settings:
         email_to=os.getenv("EMAIL_TO", ""),
         recaptcha_secret_key=os.getenv("RECAPTCHA_SECRET_KEY", ""),
         api_token=os.getenv("API_TOKEN"),
+        jwt_secret_key=os.getenv("JWT_SECRET_KEY", ""),
+        jwt_issuer=os.getenv("JWT_ISSUER", "fedal-r2d2"),
+        jwt_audience=os.getenv("JWT_AUDIENCE", "fedal-r2d2-api"),
+        access_token_minutes=int(os.getenv("ACCESS_TOKEN_MINUTES", "15")),
+        refresh_token_days=int(os.getenv("REFRESH_TOKEN_DAYS", "30")),
     )

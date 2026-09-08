@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, E501, W503
+exclude = .git,.venv,__pycache__,src/alembic/versions
+per-file-ignores =
+    tests/*: D100,D101,D102,D103,D104

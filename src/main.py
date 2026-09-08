@@ -1,11 +1,11 @@
 # app/main.py
 import logging
-from fastapi import FastAPI, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
-from src.configs.logs import setup_logging
-from src.modules.email import routers as email
-from src.modules.forms import routers as form
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from src.api.v1 import router as api_v1_router
+from src.configs.logs import setup_logging
 
 # Setup logging
 setup_logging()
@@ -23,18 +23,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-api_router = APIRouter(prefix="/api/v1")
-
-# Include routers
-api_router.include_router(email.router, prefix="/email", tags=["Email"])
-api_router.include_router(form.router, prefix="/forms", tags=["Forms"])
-
-app.include_router(api_router)
+app.include_router(api_v1_router)
 
 
 @app.get("/")
 def read_root():
     return {"message": "Hello R2D2 services"}
+
 
 @app.get("/health")
 def health_check():
