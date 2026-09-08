@@ -12,9 +12,8 @@ from src.core.database import Base
 from src.modules.email import models as email_models  # noqa: F401
 from src.modules.forms import models as form_models  # noqa: F401
 from src.apps.spanglish import models as spanglish_models  # noqa: F401
-from src.apps.spanglish import ai_models  # noqa: F401
+from src.modules.ai import models as ai_models  # noqa: F401
 from src.auth import models as auth_models  # noqa: F401
-
 
 env_file = os.getenv("ENV_FILE", ".env")
 load_dotenv(dotenv_path=env_file, override=True)
@@ -43,6 +42,7 @@ def include_object(object_, name, type_, reflected, compare_to):
     if type_ == "table" and name == "alembic_version":
         return False
     return True
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

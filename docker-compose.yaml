@@ -15,6 +15,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-fedal}:${POSTGRES_PASSWORD:-fedal_local_password}@postgres:5432/${POSTGRES_DB:-fedal_r2d2}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-before-deploying-32chars}
     depends_on:
       postgres:
         condition: service_healthy

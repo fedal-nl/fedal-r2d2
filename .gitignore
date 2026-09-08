@@ -209,3 +209,6 @@ __marimo__/
 node_modules
 
 Zaans-recht-frontend
+
+# Server-specific reverse-proxy configuration
+nginx.conf
