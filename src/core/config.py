@@ -21,6 +21,7 @@ class Settings:
     jwt_audience: str = "fedal-r2d2-api"
     access_token_minutes: int = 15
     refresh_token_days: int = 30
+    password_reset_minutes: int = 15
     recaptcha_verify_url: str = "https://www.google.com/recaptcha/api/siteverify"
 
 
@@ -72,4 +73,5 @@ def get_settings() -> Settings:
         jwt_audience=os.getenv("JWT_AUDIENCE", "fedal-r2d2-api"),
         access_token_minutes=int(os.getenv("ACCESS_TOKEN_MINUTES", "15")),
         refresh_token_days=int(os.getenv("REFRESH_TOKEN_DAYS", "30")),
+        password_reset_minutes=int(os.getenv("PASSWORD_RESET_MINUTES", "15")),
     )

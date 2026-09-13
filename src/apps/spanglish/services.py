@@ -52,8 +52,10 @@ class SpanglishService:
             question_types=list(QuizQuestionType),
         )
 
-    def create_vocabulary(self, payload: schemas.VocabularyCreate) -> models.Vocabulary:
-        """Validate references and persist a complete vocabulary aggregate."""
+    def create_vocabulary(
+        self, payload: schemas.VocabularyCreate, user_id
+    ) -> models.Vocabulary:
+        """Validate references and persist vocabulary for its authenticated user."""
         if not self.repository.get_language(payload.language_id):
             raise HTTPException(status_code=404, detail="Source language not found")
         if not self.repository.get_vocabulary_type(payload.vocabulary_type_id):
@@ -76,6 +78,7 @@ class SpanglishService:
         try:
             return self.repository.create_vocabulary(
                 text=payload.text,
+                user_id=user_id,
                 language_id=payload.language_id,
                 vocabulary_type_id=payload.vocabulary_type_id,
                 chapter_id=payload.chapter_id,

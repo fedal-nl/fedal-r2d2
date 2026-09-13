@@ -66,12 +66,22 @@ class EmailService:
 
     def send(self, message: EmailMessage) -> EmailLog:
         profile: EmailProfile = self.profile_resolver(message.application)
+        return self._send(message, profile, profile.email_to)
+
+    def send_to(self, message: EmailMessage, receiver: str) -> EmailLog:
+        """Send application email to an explicitly selected recipient."""
+        profile: EmailProfile = self.profile_resolver(message.application)
+        return self._send(message, profile, receiver)
+
+    def _send(
+        self, message: EmailMessage, profile: EmailProfile, receiver: str
+    ) -> EmailLog:
         provider = self.provider or ResendEmailProvider(profile.resend_api_key)
 
         log = EmailLog(
             application=message.application,
             sender=message.reply_to,
-            receiver=profile.email_to,
+            receiver=receiver,
             subject=message.subject,
             body=message.html or message.text,
             status=EmailStatus.SENDING,
@@ -82,14 +92,16 @@ class EmailService:
         try:
             log.provider_message_id = provider.send(
                 sender=profile.email_from,
-                receiver=profile.email_to,
+                receiver=receiver,
                 message=message,
             )
             log.status = EmailStatus.SENT
         except Exception as exc:
             log.status = EmailStatus.FAILED
             log.error_message = str(exc)
-            logger.exception("Resend failed for %s email log %s", message.application, log.id)
+            logger.exception(
+                "Resend failed for %s email log %s", message.application, log.id
+            )
 
         self.db.commit()
         self.db.refresh(log)

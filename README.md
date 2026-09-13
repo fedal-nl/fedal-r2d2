@@ -195,10 +195,14 @@ JWT_ISSUER=fedal-r2d2
 JWT_AUDIENCE=fedal-r2d2-api
 ACCESS_TOKEN_MINUTES=15
 REFRESH_TOKEN_DAYS=30
+PASSWORD_RESET_MINUTES=15
 RECAPTCHA_SECRET_KEY=replace-me
 RESEND_API_KEY_ZAANSRECHT=re_replace-me
 EMAIL_FROM_ZAANSRECHT=Zaansrecht <noreply@zaansrecht.nl>
 EMAIL_TO_ZAANSRECHT=owner@example.com
+RESEND_API_KEY_SPANGLISH=re_replace-me
+EMAIL_FROM_SPANGLISH=Spanglish <noreply@example.com>
+EMAIL_TO_SPANGLISH=owner@example.com
 ```
 
 Generate a development signing secret with `openssl rand -hex 32`. Access tokens
@@ -216,6 +220,8 @@ Local authentication is available at `/api/v1/auth`:
 | `POST` | `/login` | Obtain an access token and refresh token |
 | `POST` | `/refresh` | Rotate a refresh token and obtain a new pair |
 | `POST` | `/logout` | Revoke a refresh session |
+| `POST` | `/password-reset/request` | Email a short-lived reset token |
+| `POST` | `/password-reset/confirm` | Set a new password and revoke sessions |
 | `GET` | `/me` | Return the authenticated user |
 
 The access-token `sub` claim is the UUID in `public.users`. Clients never submit
@@ -223,6 +229,15 @@ a `user_id`; protected routes derive it from the bearer token. Quiz creation and
 result submission require authentication, and result submission is scoped to the
 quiz owner. Global languages, categories, vocabulary types, and vocabulary remain
 readable without authentication.
+
+Creating vocabulary requires authentication. The API derives `user_id` from the
+bearer token rather than accepting it from the client, and vocabulary uniqueness
+is scoped to `(text, language_id, user_id)`.
+
+Password-reset requests always return the same accepted response, whether or
+not the email is registered. Tokens expire after `PASSWORD_RESET_MINUTES`, are
+invalid after the password changes, and confirmation revokes all refresh
+sessions. Delivery uses the `spanglish` Resend profile.
 
 Run the database migration before using authentication:
 

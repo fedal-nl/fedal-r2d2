@@ -110,6 +110,7 @@ class SpanglishRepository:
         self,
         *,
         text: str,
+        user_id,
         language_id: int,
         vocabulary_type_id: int,
         chapter_id: int | None,
@@ -120,6 +121,7 @@ class SpanglishRepository:
         """Persist one complete vocabulary aggregate in a transaction."""
         vocabulary = models.Vocabulary(
             text=text.strip(),
+            user_id=user_id,
             language_id=language_id,
             vocabulary_type_id=vocabulary_type_id,
             chapter_id=chapter_id,
