@@ -340,10 +340,18 @@ make deploy
 ```
 
 The deployment command stops the existing production stack, pulls the image,
-and starts it in detached mode using `docker-compose.prod.yaml`. Production does
-not mount source files and does not enable Uvicorn reload. The container still
-listens on port 8000 internally, but production publishes it on
-`127.0.0.1:8001` by default to avoid conflicts with other containers.
+runs `alembic upgrade head` from that image, and then starts it in detached mode
+using `docker-compose.prod.yaml`. If migration fails, Make stops and does not
+start the API with an incompatible database schema. Production does not mount
+source files and does not enable Uvicorn reload. The container still listens on
+port 8000 internally, but production publishes it on `127.0.0.1:8001` by default
+to avoid conflicts with other containers.
+
+To apply production migrations without restarting the API, run:
+
+```bash
+make prod-upgrade
+```
 
 To use another host port:
 
