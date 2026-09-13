@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help up down deploy prod-down prod-logs test lint migrate upgrade downgrade current history stamp clean
+.PHONY: help up down deploy prod-upgrade prod-down prod-logs test lint migrate upgrade downgrade current history stamp clean
 
 PROD_COMPOSE := docker compose -f docker-compose.prod.yaml
 
@@ -14,11 +14,15 @@ up:
 down:
 	docker compose down
 
-# Production: stop the current stack, pull the published image, and restart it.
+# Production: stop the current stack, pull, migrate, and restart it.
 deploy:
 	$(PROD_COMPOSE) down
 	$(PROD_COMPOSE) pull
+	$(MAKE) prod-upgrade
 	$(PROD_COMPOSE) up -d
+
+prod-upgrade:
+	$(PROD_COMPOSE) run --rm api uv run alembic upgrade head
 
 prod-down:
 	$(PROD_COMPOSE) down
@@ -71,7 +75,8 @@ help:
 	@echo "Available make commands:"
 	@echo "  make up          - Build and run the API with Docker Compose"
 	@echo "  make down        - Stop the Docker Compose services"
-	@echo "  make deploy      - Down, pull, and start the production image"
+	@echo "  make deploy      - Pull, migrate, and start the production image"
+	@echo "  make prod-upgrade - Apply migrations using the production image"
 	@echo "  make prod-down   - Stop the production Compose services"
 	@echo "  make prod-logs   - Follow production API logs"
 	@echo "  make test        - Run tests with pytest"
