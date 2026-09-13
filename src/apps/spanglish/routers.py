@@ -95,10 +95,12 @@ def create_vocabulary_type(
 
 @router.post("/vocabulary", response_model=schemas.VocabularyResponse, status_code=201)
 def create_vocabulary(
-    payload: schemas.VocabularyCreate, service: SpanglishService = Depends(get_service)
+    payload: schemas.VocabularyCreate,
+    service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """Create a complete vocabulary card with translations and conjugations."""
-    return service.create_vocabulary(payload)
+    """Create a complete vocabulary card owned by the authenticated user."""
+    return service.create_vocabulary(payload, current_user.id)
 
 
 @router.get("/vocabulary", response_model=schemas.VocabularyListResponse)

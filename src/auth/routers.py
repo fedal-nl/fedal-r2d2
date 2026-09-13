@@ -51,6 +51,30 @@ def logout(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post(
+    "/password-reset/request",
+    response_model=schemas.MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def request_password_reset(
+    payload: schemas.PasswordResetRequest,
+    service: AuthService = Depends(get_auth_service),
+):
+    service.request_password_reset(str(payload.email))
+    return schemas.MessageResponse(
+        message="If the account exists, a password reset token has been sent."
+    )
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+def confirm_password_reset(
+    payload: schemas.PasswordResetConfirm,
+    service: AuthService = Depends(get_auth_service),
+) -> Response:
+    service.confirm_password_reset(payload.token, payload.new_password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/me", response_model=schemas.UserRead)
 def me(current_user: User = Depends(get_current_user)):
     return current_user

@@ -96,8 +96,22 @@ def test_send_uses_application_specific_profile() -> None:
             assert receiver == "owner@example.com"
             return "custom-id"
 
-    log = EmailService(FakeSession(), RecipientProvider(), profile_resolver).send(MESSAGE)
+    log = EmailService(FakeSession(), RecipientProvider(), profile_resolver).send(
+        MESSAGE
+    )
     assert log.receiver == "owner@example.com"
+
+
+def test_send_to_uses_explicit_recipient() -> None:
+    class RecipientProvider(SuccessfulProvider):
+        def send(self, *, sender, receiver, message):
+            assert receiver == "learner@example.com"
+            return "reset-id"
+
+    log = EmailService(FakeSession(), RecipientProvider(), profile_resolver).send_to(
+        MESSAGE, "learner@example.com"
+    )
+    assert log.receiver == "learner@example.com"
 
 
 def test_email_queries() -> None:
@@ -123,11 +137,14 @@ def test_resend_provider(monkeypatch) -> None:
 
     monkeypatch.setattr("resend.Emails.send", fake_send)
     provider = ResendEmailProvider("re_test")
-    assert provider.send(
-        sender=PROFILE.email_from,
-        receiver=PROFILE.email_to,
-        message=MESSAGE,
-    ) == "resend-id"
+    assert (
+        provider.send(
+            sender=PROFILE.email_from,
+            receiver=PROFILE.email_to,
+            message=MESSAGE,
+        )
+        == "resend-id"
+    )
     assert sent["tags"] == [{"name": "application", "value": "spanglish"}]
 
 

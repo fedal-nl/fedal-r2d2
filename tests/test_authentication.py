@@ -12,7 +12,12 @@ from sqlalchemy.exc import IntegrityError
 
 from src.auth import routers, schemas
 from src.auth.models import RefreshSession, User
-from src.auth.services import AuthService, decode_access_token, hash_refresh_token
+from src.auth.services import (
+    AuthService,
+    decode_access_token,
+    hash_refresh_token,
+    password_hash,
+)
 from src.dependencies.auth import get_current_user
 
 USER_ID = UUID("22222222-2222-2222-2222-222222222222")
@@ -148,6 +153,14 @@ def test_auth_route_wrappers_delegate() -> None:
     routers.login(login, service)
     refresh = schemas.RefreshRequest(refresh_token="r" * 40)
     routers.refresh(refresh, service)
+    reset_request = schemas.PasswordResetRequest(email="cli@example.com")
+    assert routers.request_password_reset(reset_request, service).message.startswith(
+        "If the account exists"
+    )
+    reset_confirm = schemas.PasswordResetConfirm(
+        token="t" * 32, new_password="new-password"
+    )
+    assert routers.confirm_password_reset(reset_confirm, service).status_code == 204
     assert (
         routers.logout(
             schemas.LogoutRequest(**refresh.model_dump()), service
@@ -157,3 +170,43 @@ def test_auth_route_wrappers_delegate() -> None:
     account = user()
     assert routers.me(account) is account
     assert routers.get_auth_service(service).db is service
+
+
+def test_password_reset_changes_password_and_revokes_sessions() -> None:
+    sent = {}
+    account = user(
+        password_hash=password_hash.hash("old-password"),
+    )
+    session = SimpleNamespace(revoked_at=None)
+    db = MagicMock()
+    db.scalar.return_value = account
+    db.get.return_value = account
+    db.scalars.return_value = [session]
+    service = AuthService(
+        db, lambda email, token: sent.update(email=email, token=token)
+    )
+
+    service.request_password_reset("CLI@example.com")
+    service.confirm_password_reset(sent["token"], "new-password")
+
+    assert sent["email"] == "cli@example.com"
+    assert password_hash.verify("new-password", account.password_hash)
+    assert session.revoked_at is not None
+    db.commit.assert_called()
+
+    with pytest.raises(HTTPException, match="reset token"):
+        service.confirm_password_reset(sent["token"], "another-password")
+
+
+def test_password_reset_request_hides_unknown_account() -> None:
+    sender = MagicMock()
+    db = MagicMock()
+    db.scalar.return_value = None
+    AuthService(db, sender).request_password_reset("missing@example.com")
+    sender.assert_not_called()
+
+
+def test_password_reset_rejects_invalid_token() -> None:
+    with pytest.raises(HTTPException) as error:
+        AuthService(MagicMock()).confirm_password_reset("invalid", "new-password")
+    assert error.value.status_code == 400

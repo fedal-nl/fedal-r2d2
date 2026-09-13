@@ -15,32 +15,6 @@ class FormStatus(str, Enum):
     ARCHIVED = "ARCHIVED"
 
 
-class CategoryEnum(str, Enum):
-    NOUN = "Noun"
-    VERB = "Verb"
-    ADJECTIVE = "Adjective"
-    DAY = "Days"
-    MONTH = "Months"
-    COLOR = "Colors"
-    BODY_PART = "Body Parts"
-    ANIMAL = "Animals"
-    FAMILY = "Family"
-    NUMBERS = "Numbers"
-    TIME = "Time"
-    DIRECTIONS = "Directions"
-    GREETINGS = "Greetings"
-    WEATHER = "Weather"
-    SONGS = "Songs"
-    FOOD = "Food"
-    PROFESSIONS = "Professions"
-    PHRASES = "Phrases"
-
-
-class LanguageEnum(str, Enum):
-    SPANISH = "Spanish"
-    ENGLISH = "English"
-
-
 class AIAgentEnum(str, Enum):
     OPENAI = "OpenAI"
     GOOGLE = "Google"
@@ -63,13 +37,6 @@ class SocialMediaPlatformEnum(str, Enum):
     GITHUB = "GitHub"
     SPOTIFY = "Spotify"
     EMAIL = "Email"
-
-
-class VocabularyTypeEnum(str, Enum):
-    PHRASE = "Phrase"
-    WORD = "Word"
-    SENTENCE = "Sentence"
-    LYRIC = "Lyric"
 
 
 class QuizSelectionMode(str, Enum):

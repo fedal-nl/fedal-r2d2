@@ -179,27 +179,27 @@ def test_service_options_and_vocabulary_validation() -> None:
         category_ids=[3],
         translations=[{"language_id": 2, "text": "dog"}],
     )
-    assert service.create_vocabulary(payload)["text"] == "perro"
+    assert service.create_vocabulary(payload, USER_ID)["text"] == "perro"
 
     repository.languages.pop(1)
     with pytest.raises(HTTPException, match="Source language"):
-        service.create_vocabulary(payload)
+        service.create_vocabulary(payload, USER_ID)
     repository.languages[1] = repository.es
     payload.vocabulary_type_id = 99
     with pytest.raises(HTTPException, match="Vocabulary type"):
-        service.create_vocabulary(payload)
+        service.create_vocabulary(payload, USER_ID)
     payload.vocabulary_type_id = 4
     payload.chapter_id = 99
     with pytest.raises(HTTPException, match="Chapter"):
-        service.create_vocabulary(payload)
+        service.create_vocabulary(payload, USER_ID)
     payload.chapter_id = 5
     payload.category_ids = [99]
     with pytest.raises(HTTPException, match="categories"):
-        service.create_vocabulary(payload)
+        service.create_vocabulary(payload, USER_ID)
     payload.category_ids = [3]
     payload.translations[0].language_id = 99
     with pytest.raises(HTTPException, match="Translation language"):
-        service.create_vocabulary(payload)
+        service.create_vocabulary(payload, USER_ID)
 
 
 def test_service_translates_integrity_error_to_conflict() -> None:
@@ -216,7 +216,7 @@ def test_service_translates_integrity_error_to_conflict() -> None:
         translations=[{"language_id": 2, "text": "dog"}],
     )
     with pytest.raises(HTTPException) as error:
-        SpanglishService(repository).create_vocabulary(payload)
+        SpanglishService(repository).create_vocabulary(payload, USER_ID)
     assert error.value.status_code == 409
     repository.db.rollback.assert_called_once()
 
@@ -482,6 +482,7 @@ def test_repository_aggregate_and_result_persistence() -> None:
     db.add.side_effect = lambda value: setattr(value, "id", 5)
     created = repository.create_vocabulary(
         text=" perro ",
+        user_id=USER_ID,
         language_id=1,
         vocabulary_type_id=4,
         chapter_id=None,
@@ -490,6 +491,7 @@ def test_repository_aggregate_and_result_persistence() -> None:
         conjugations=[],
     )
     assert created == "loaded"
+    assert db.add.call_args_list[0].args[0].user_id == USER_ID
     quiz = repository.create_quiz(
         source_language_id=1,
         target_language_id=2,
@@ -595,7 +597,8 @@ def test_route_functions_delegate_without_http_server() -> None:
     routers.create_chapter(schemas.ReferenceCreate(name="Chapter 1"), repository)
     routers.list_vocabulary_types(repository)
     routers.create_vocabulary_type(schemas.ReferenceCreate(name="Word"), repository)
-    routers.create_vocabulary(MagicMock(), service)
+    user = SimpleNamespace(id=USER_ID)
+    routers.create_vocabulary(MagicMock(), service, user)
     response = routers.list_vocabulary(
         page=1,
         page_size=20,
@@ -625,7 +628,6 @@ def test_route_functions_delegate_without_http_server() -> None:
     routers.create_conjugation(1, conjugation_create, service)
     routers.update_conjugation(1, 2, conjugation_update, service)
     assert routers.delete_conjugation(1, 2, service).status_code == 204
-    user = SimpleNamespace(id=USER_ID)
     routers.create_quiz(MagicMock(), service, user)
     routers.submit_quiz_result(1, MagicMock(), service, user)
     repository.get_vocabulary.return_value = None

@@ -158,7 +158,12 @@ class Vocabulary(Base):
         secondary="spanglish.vocabulary_categories", back_populates="vocabularies"
     )
     __table_args__ = (
-        UniqueConstraint("text", "language_id", name="uq_vocabulary_text_language"),
+        UniqueConstraint(
+            "text",
+            "language_id",
+            "user_id",
+            name="uq_vocabulary_text_language_user",
+        ),
         {"schema": SPANGGLISH_SCHEMA},
     )
 
