@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help up down deploy prod-upgrade prod-down prod-logs test lint migrate upgrade downgrade current history stamp clean
+.PHONY: help up down deploy prod-upgrade prod-down prod-logs test lint migrate upgrade downgrade current history stamp patch minor major clean
 
 PROD_COMPOSE := docker compose -f docker-compose.prod.yaml
 
@@ -62,6 +62,18 @@ lint:
 	uv run ruff check src tests
 
 # ---------------------------------
+# Versioning
+# ---------------------------------
+patch:
+	uv run bump2version patch
+
+minor:
+	uv run bump2version minor
+
+major:
+	uv run bump2version major
+
+# ---------------------------------
 # Clean Python cache
 # ---------------------------------
 clean:
@@ -81,6 +93,9 @@ help:
 	@echo "  make prod-logs   - Follow production API logs"
 	@echo "  make test        - Run tests with pytest"
 	@echo "  make lint        - Run Ruff checks"
+	@echo "  make patch       - Bump the API patch version, commit, and tag"
+	@echo "  make minor       - Bump the API minor version, commit, and tag"
+	@echo "  make major       - Bump the API major version, commit, and tag"
 	@echo "  make migrate     - Generate Alembic migration"
 	@echo "  make upgrade     - Apply Alembic migrations"
 	@echo "  make downgrade   - Downgrade with REVISION=<revision_id>"

@@ -23,6 +23,7 @@ def test_v1_api_routes_keep_their_versioned_prefix() -> None:
     assert API_PREFIX == "/api/v1"
     assert "/api/v1/spanglish/quiz-options" in paths
     assert "/api/v1/spanglish/quizzes" in paths
+    assert "/api/v1/spanglish/quizzes/results" in paths
     assert "/api/v1/email/send-email" in paths
     assert "/api/v1/forms/zaansrecht" in paths
 

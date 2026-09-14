@@ -43,30 +43,6 @@ class Language(Base):
     )
 
 
-class VocabularyType(Base):
-    """The shape of learning content, such as a word or phrase."""
-
-    __tablename__ = "vocabulary_types"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now(), index=True
-    )
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=True, index=True
-    )
-    vocabulary: Mapped[list["Vocabulary"]] = relationship(
-        back_populates="vocabulary_type"
-    )
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_vocabularytype_name"),
-        {"schema": SPANGGLISH_SCHEMA},
-    )
-
-
 class Category(Base):
     """A topic used to browse vocabulary and configure quizzes."""
 
@@ -127,11 +103,6 @@ class Vocabulary(Base):
         nullable=False,
         index=True,
     )
-    vocabulary_type_id: Mapped[int] = mapped_column(
-        ForeignKey("spanglish.vocabulary_types.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     chapter_id: Mapped[int | None] = mapped_column(
         ForeignKey("spanglish.chapters.id", ondelete="SET NULL"), index=True
     )
@@ -142,7 +113,6 @@ class Vocabulary(Base):
         DateTime(timezone=True), onupdate=func.now(), index=True
     )
     language: Mapped[Language] = relationship()
-    vocabulary_type: Mapped[VocabularyType] = relationship(back_populates="vocabulary")
     chapter: Mapped[Chapter | None] = relationship(back_populates="vocabulary")
     translations: Mapped[list["Translation"]] = relationship(
         back_populates="vocabulary", cascade="all, delete-orphan"
