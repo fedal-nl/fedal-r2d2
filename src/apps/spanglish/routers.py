@@ -76,23 +76,6 @@ def create_chapter(
     return repository.create_chapter(payload.name)
 
 
-@router.get("/vocabulary-types", response_model=list[schemas.ReferenceResponse])
-def list_vocabulary_types(repository: SpanglishRepository = Depends(get_repository)):
-    """List supported vocabulary content types."""
-    return repository.list_vocabulary_types()
-
-
-@router.post(
-    "/vocabulary-types", response_model=schemas.ReferenceResponse, status_code=201
-)
-def create_vocabulary_type(
-    payload: schemas.ReferenceCreate,
-    repository: SpanglishRepository = Depends(get_repository),
-):
-    """Create a vocabulary content type such as Word or Phrase."""
-    return repository.create_vocabulary_type(payload.name)
-
-
 @router.post("/vocabulary", response_model=schemas.VocabularyResponse, status_code=201)
 def create_vocabulary(
     payload: schemas.VocabularyCreate,
@@ -226,6 +209,16 @@ def create_quiz(
 ):
     """Generate and return an entire locally executable quiz."""
     return service.generate_quiz(payload, current_user.id)
+
+
+@router.get("/quizzes/results", response_model=list[schemas.QuizHistoryItem])
+def list_quiz_results(
+    limit: int = Query(default=5, ge=1, le=100),
+    service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the authenticated user's most recent completed quiz scores."""
+    return service.list_quiz_results(current_user.id, limit)
 
 
 @router.post("/quizzes/{quiz_id}/results", response_model=schemas.QuizResultResponse)

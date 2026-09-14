@@ -128,7 +128,6 @@ The available endpoints are:
 | `GET/POST` | `/api/v1/spanglish/languages` | List or create languages |
 | `GET/POST` | `/api/v1/spanglish/categories` | List or create quiz categories |
 | `GET/POST` | `/api/v1/spanglish/chapters` | List or create optional lesson chapters |
-| `GET/POST` | `/api/v1/spanglish/vocabulary-types` | List or create content types |
 | `GET/POST` | `/api/v1/spanglish/vocabulary` | Browse or create vocabulary cards |
 | `GET` | `/api/v1/spanglish/vocabulary/{id}` | Fetch one complete vocabulary card |
 | `PUT/DELETE` | `/api/v1/spanglish/vocabulary/{id}` | Replace or delete a vocabulary card |
@@ -176,7 +175,7 @@ does not delete the vocabulary item. A conjugation identifier cannot be used
 under a different vocabulary identifier; that request returns `404 Not Found`.
 
 Migration `8c4a1f2d9b70` evolves the existing Spanglish tables, seeds Spanish,
-English, standard vocabulary types and categories, structures verb conjugations,
+English, standard categories, structures verb conjugations,
 and adds batch quiz snapshots and results. It does not change the email, forms,
 or reCAPTCHA tables.
 
@@ -227,7 +226,7 @@ Local authentication is available at `/api/v1/auth`:
 The access-token `sub` claim is the UUID in `public.users`. Clients never submit
 a `user_id`; protected routes derive it from the bearer token. Quiz creation and
 result submission require authentication, and result submission is scoped to the
-quiz owner. Global languages, categories, vocabulary types, and vocabulary remain
+quiz owner. Global languages, categories, and vocabulary remain
 readable without authentication.
 
 Creating vocabulary requires authentication. The API derives `user_id` from the

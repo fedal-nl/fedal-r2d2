@@ -43,7 +43,6 @@ class QuizOptionsResponse(BaseModel):
     languages: list[LanguageResponse]
     categories: list[CategoryOption]
     chapters: list[ReferenceResponse]
-    vocabulary_types: list[ReferenceResponse]
     selection_modes: list[QuizSelectionMode]
     question_types: list[QuizQuestionType]
     default_question_count: int = 10
@@ -96,7 +95,6 @@ class VocabularyCreate(BaseModel):
 
     text: str = Field(min_length=1, max_length=500)
     language_id: int
-    vocabulary_type_id: int
     chapter_id: int | None = None
     category_ids: list[int] = Field(default_factory=list)
     translations: list[TranslationCreate] = Field(min_length=1)
@@ -108,7 +106,6 @@ class VocabularyUpdate(BaseModel):
 
     text: str = Field(min_length=1, max_length=500)
     language_id: int
-    vocabulary_type_id: int
     chapter_id: int | None = None
     category_ids: list[int] = Field(default_factory=list)
     translations: list[TranslationCreate] = Field(min_length=1)
@@ -122,7 +119,6 @@ class VocabularyResponse(BaseModel):
     id: int
     text: str
     language: LanguageResponse
-    vocabulary_type: ReferenceResponse
     chapter: ReferenceResponse | None
     categories: list[ReferenceResponse]
     translations: list[TranslationResponse]
@@ -146,7 +142,6 @@ class QuizCreateRequest(BaseModel):
     target_language_id: int
     category_ids: list[int] = Field(default_factory=list)
     chapter_ids: list[int] = Field(default_factory=list)
-    vocabulary_type_ids: list[int] = Field(default_factory=list)
     question_count: int = Field(default=10, ge=1, le=100)
     selection_mode: QuizSelectionMode = QuizSelectionMode.RANDOM
     question_types: list[QuizQuestionType] = Field(
@@ -229,3 +224,13 @@ class QuizResultResponse(BaseModel):
     score: ScoreResponse
     attempts: list[AttemptEvaluation]
     advice: dict
+
+
+class QuizHistoryItem(BaseModel):
+    """Summarize one completed quiz for score-progress displays."""
+
+    quiz_id: int
+    completed_at: datetime
+    correct: int
+    total: int
+    percentage: float

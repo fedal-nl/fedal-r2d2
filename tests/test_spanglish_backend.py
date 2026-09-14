@@ -38,16 +38,15 @@ def reference_data():
     es = SimpleNamespace(id=1, name="Spanish", code="es")
     en = SimpleNamespace(id=2, name="English", code="en")
     category = SimpleNamespace(id=3, name="Animals")
-    word = SimpleNamespace(id=4, name="Word")
     chapter = SimpleNamespace(id=5, name="Chapter 1")
-    return es, en, category, word, chapter
+    return es, en, category, chapter
 
 
 class FakeRepository:
     """Provide configurable persistence behavior to service unit tests."""
 
     def __init__(self):
-        self.es, self.en, self.category, self.word, self.chapter = reference_data()
+        self.es, self.en, self.category, self.chapter = reference_data()
         self.languages = {1: self.es, 2: self.en}
         self.categories = [self.category]
         self.rows = []
@@ -72,17 +71,11 @@ class FakeRepository:
     def list_languages(self):
         return list(self.languages.values())
 
-    def list_vocabulary_types(self):
-        return [self.word]
-
     def list_chapters(self):
         return [self.chapter]
 
     def get_language(self, value):
         return self.languages.get(value)
-
-    def get_vocabulary_type(self, value):
-        return self.word if value == 4 else None
 
     def get_chapter(self, value):
         return self.chapter if value == 5 else None
@@ -145,6 +138,11 @@ class FakeRepository:
     def get_quiz(self, quiz_id, user_id):
         return self.quiz if quiz_id == 9 and user_id == USER_ID else None
 
+    def list_quiz_results(self, user_id, limit):
+        if user_id != USER_ID or self.quiz is None:
+            return []
+        return [self.quiz][:limit]
+
     def save_result(self, quiz, attempts):
         quiz.attempts = attempts
         return quiz
@@ -174,7 +172,6 @@ def test_service_options_and_vocabulary_validation() -> None:
     payload = schemas.VocabularyCreate(
         text="perro",
         language_id=1,
-        vocabulary_type_id=4,
         chapter_id=5,
         category_ids=[3],
         translations=[{"language_id": 2, "text": "dog"}],
@@ -185,10 +182,6 @@ def test_service_options_and_vocabulary_validation() -> None:
     with pytest.raises(HTTPException, match="Source language"):
         service.create_vocabulary(payload, USER_ID)
     repository.languages[1] = repository.es
-    payload.vocabulary_type_id = 99
-    with pytest.raises(HTTPException, match="Vocabulary type"):
-        service.create_vocabulary(payload, USER_ID)
-    payload.vocabulary_type_id = 4
     payload.chapter_id = 99
     with pytest.raises(HTTPException, match="Chapter"):
         service.create_vocabulary(payload, USER_ID)
@@ -211,7 +204,6 @@ def test_service_translates_integrity_error_to_conflict() -> None:
     payload = schemas.VocabularyCreate(
         text="perro",
         language_id=1,
-        vocabulary_type_id=4,
         chapter_id=5,
         translations=[{"language_id": 2, "text": "dog"}],
     )
@@ -247,7 +239,6 @@ def test_vocabulary_service_update_and_delete() -> None:
     payload = schemas.VocabularyUpdate(
         text="perro",
         language_id=1,
-        vocabulary_type_id=4,
         category_ids=[3],
         translations=[{"language_id": 2, "text": "dog"}],
     )
@@ -260,10 +251,6 @@ def test_vocabulary_service_update_and_delete() -> None:
     with pytest.raises(HTTPException, match="Source language"):
         service.update_vocabulary(7, payload)
     repository.languages[1] = repository.es
-    payload.vocabulary_type_id = 99
-    with pytest.raises(HTTPException, match="Vocabulary type"):
-        service.update_vocabulary(7, payload)
-    payload.vocabulary_type_id = 4
     payload.chapter_id = 99
     with pytest.raises(HTTPException, match="Chapter"):
         service.update_vocabulary(7, payload)
@@ -286,7 +273,6 @@ def test_vocabulary_service_update_conflict() -> None:
     payload = schemas.VocabularyUpdate(
         text="perro",
         language_id=1,
-        vocabulary_type_id=4,
         translations=[{"language_id": 2, "text": "dog"}],
     )
     with pytest.raises(HTTPException) as error:
@@ -329,7 +315,6 @@ def test_generate_quiz_validation_warnings_and_question_types() -> None:
         question_count=3,
         category_ids=[3],
         chapter_ids=[5],
-        vocabulary_type_ids=[4],
         question_types=[QuizQuestionType.TRANSLATION, QuizQuestionType.CONJUGATION],
     )
     with pytest.raises(HTTPException, match="No vocabulary"):
@@ -382,6 +367,9 @@ def test_submit_result_success_and_all_validation_errors() -> None:
     assert result.score.percentage == 100
     assert result.advice["generated_by_ai"] is False
     assert repository.quiz.attempts[0].answer == {"value": "to speak"}
+    history = service.list_quiz_results(USER_ID, 5)
+    assert history[0].quiz_id == quiz.quiz_id
+    assert history[0].percentage == 100
     with pytest.raises(HTTPException) as repeated:
         service.submit_result(9, payload, USER_ID)
     assert repeated.value.status_code == 409
@@ -432,10 +420,8 @@ def test_repository_crud_and_query_wrappers() -> None:
 
     assert repository.list_languages()[0].name == "A"
     assert repository.list_categories()[0].name == "A"
-    assert repository.list_vocabulary_types()[0].name == "A"
     assert repository.list_chapters()[0].name == "A"
     assert repository.get_language(1).id == 1
-    assert repository.get_vocabulary_type(2).id == 2
     assert repository.get_chapter(5).id == 5
     assert repository.get_chapters([]) == []
     assert repository.get_chapters([5])[0].id == 1
@@ -458,20 +444,19 @@ def test_repository_crud_and_query_wrappers() -> None:
         target_language_id=2,
         category_ids=[3],
         chapter_ids=[5],
-        vocabulary_type_ids=[4],
         limit=10,
         selection_mode=QuizSelectionMode.SEQUENTIAL,
     )
+    assert repository.list_quiz_results(USER_ID, 5)
 
     for creator, arguments in (
         (repository.create_language, (" Spanish ", " ES ")),
         (repository.create_category, (" Animals ",)),
         (repository.create_chapter, (" Chapter 1 ",)),
-        (repository.create_vocabulary_type, (" Word ",)),
     ):
         created = creator(*arguments)
         assert created is not None
-    assert db.commit.call_count == 4
+    assert db.commit.call_count == 3
 
 
 def test_repository_aggregate_and_result_persistence() -> None:
@@ -484,7 +469,6 @@ def test_repository_aggregate_and_result_persistence() -> None:
         text=" perro ",
         user_id=USER_ID,
         language_id=1,
-        vocabulary_type_id=4,
         chapter_id=None,
         categories=[],
         translations=[{"language_id": 2, "text": " dog "}],
@@ -522,15 +506,12 @@ def test_repository_updates_and_deletes_vocabulary_aggregate() -> None:
     """Replace nested vocabulary rows and delegate aggregate deletion to SQLAlchemy."""
     db = MagicMock()
     repository = SpanglishRepository(db)
-    vocabulary = models.Vocabulary(
-        id=7, text="perro", language_id=1, vocabulary_type_id=4
-    )
+    vocabulary = models.Vocabulary(id=7, text="perro", language_id=1)
     repository.get_vocabulary = MagicMock(return_value=vocabulary)
     updated = repository.update_vocabulary(
         vocabulary,
         text=" hablar ",
         language_id=1,
-        vocabulary_type_id=4,
         chapter_id=None,
         categories=[],
         translations=[{"language_id": 2, "text": " speak "}],
@@ -581,7 +562,6 @@ def test_route_functions_delegate_without_http_server() -> None:
     repository.list_languages.return_value = []
     repository.list_categories.return_value = []
     repository.list_chapters.return_value = []
-    repository.list_vocabulary_types.return_value = []
     repository.list_vocabulary.return_value = ([], 0)
     repository.get_vocabulary.return_value = SimpleNamespace(id=1)
     assert routers.get_repository(repository) is not None
@@ -595,8 +575,6 @@ def test_route_functions_delegate_without_http_server() -> None:
     routers.create_category(schemas.ReferenceCreate(name="Animals"), repository)
     routers.list_chapters(repository)
     routers.create_chapter(schemas.ReferenceCreate(name="Chapter 1"), repository)
-    routers.list_vocabulary_types(repository)
-    routers.create_vocabulary_type(schemas.ReferenceCreate(name="Word"), repository)
     user = SimpleNamespace(id=USER_ID)
     routers.create_vocabulary(MagicMock(), service, user)
     response = routers.list_vocabulary(
@@ -614,7 +592,6 @@ def test_route_functions_delegate_without_http_server() -> None:
     vocabulary_update = schemas.VocabularyUpdate(
         text="perro",
         language_id=1,
-        vocabulary_type_id=1,
         translations=[{"language_id": 2, "text": "dog"}],
     )
     routers.update_vocabulary(1, vocabulary_update, service)
@@ -629,6 +606,7 @@ def test_route_functions_delegate_without_http_server() -> None:
     routers.update_conjugation(1, 2, conjugation_update, service)
     assert routers.delete_conjugation(1, 2, service).status_code == 204
     routers.create_quiz(MagicMock(), service, user)
+    routers.list_quiz_results(5, service, user)
     routers.submit_quiz_result(1, MagicMock(), service, user)
     repository.get_vocabulary.return_value = None
     with pytest.raises(HTTPException):

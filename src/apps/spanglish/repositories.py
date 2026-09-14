@@ -26,14 +26,6 @@ class SpanglishRepository:
             self.db.scalars(select(models.Category).order_by(models.Category.name))
         )
 
-    def list_vocabulary_types(self) -> list[models.VocabularyType]:
-        """Return vocabulary types ordered by display name."""
-        return list(
-            self.db.scalars(
-                select(models.VocabularyType).order_by(models.VocabularyType.name)
-            )
-        )
-
     def list_chapters(self) -> list[models.Chapter]:
         """Return optional lesson chapters in stable display order."""
         return list(
@@ -64,23 +56,9 @@ class SpanglishRepository:
         self.db.refresh(chapter)
         return chapter
 
-    def create_vocabulary_type(self, name: str) -> models.VocabularyType:
-        """Persist a vocabulary content type."""
-        vocabulary_type = models.VocabularyType(name=name.strip())
-        self.db.add(vocabulary_type)
-        self.db.commit()
-        self.db.refresh(vocabulary_type)
-        return vocabulary_type
-
     def get_language(self, language_id: int) -> models.Language | None:
         """Return one language by primary key."""
         return self.db.get(models.Language, language_id)
-
-    def get_vocabulary_type(
-        self, vocabulary_type_id: int
-    ) -> models.VocabularyType | None:
-        """Return one vocabulary type by primary key."""
-        return self.db.get(models.VocabularyType, vocabulary_type_id)
 
     def get_chapter(self, chapter_id: int) -> models.Chapter | None:
         """Return one chapter by primary key."""
@@ -112,7 +90,6 @@ class SpanglishRepository:
         text: str,
         user_id,
         language_id: int,
-        vocabulary_type_id: int,
         chapter_id: int | None,
         categories: list[models.Category],
         translations: list[dict],
@@ -123,7 +100,6 @@ class SpanglishRepository:
             text=text.strip(),
             user_id=user_id,
             language_id=language_id,
-            vocabulary_type_id=vocabulary_type_id,
             chapter_id=chapter_id,
             categories=categories,
             translations=[
@@ -149,7 +125,6 @@ class SpanglishRepository:
         *,
         text: str,
         language_id: int,
-        vocabulary_type_id: int,
         chapter_id: int | None,
         categories: list[models.Category],
         translations: list[dict],
@@ -158,7 +133,6 @@ class SpanglishRepository:
         """Replace a vocabulary aggregate and its client-managed children."""
         vocabulary.text = text.strip()
         vocabulary.language_id = language_id
-        vocabulary.vocabulary_type_id = vocabulary_type_id
         vocabulary.chapter_id = chapter_id
         vocabulary.categories = categories
         vocabulary.translations = [
@@ -279,7 +253,6 @@ class SpanglishRepository:
         target_language_id: int,
         category_ids: list[int],
         chapter_ids: list[int],
-        vocabulary_type_ids: list[int],
         limit: int,
         selection_mode: QuizSelectionMode,
     ) -> list[models.Vocabulary]:
@@ -306,10 +279,6 @@ class SpanglishRepository:
             )
         if chapter_ids:
             query = query.where(models.Vocabulary.chapter_id.in_(chapter_ids))
-        if vocabulary_type_ids:
-            query = query.where(
-                models.Vocabulary.vocabulary_type_id.in_(vocabulary_type_ids)
-            )
         ordering = (
             func.random()
             if selection_mode == QuizSelectionMode.RANDOM
@@ -337,6 +306,19 @@ class SpanglishRepository:
         )
         return self.db.scalars(query).first()
 
+    def list_quiz_results(self, user_id, limit: int) -> list[models.QuizSession]:
+        """Return a user's most recently completed quizzes, newest first."""
+        query = (
+            select(models.QuizSession)
+            .where(
+                models.QuizSession.user_id == user_id,
+                models.QuizSession.completed_at.is_not(None),
+            )
+            .order_by(models.QuizSession.completed_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.scalars(query))
+
     def save_result(
         self, quiz: models.QuizSession, attempts: list[models.QuizAttempt]
     ) -> models.QuizSession:
@@ -351,7 +333,6 @@ class SpanglishRepository:
         """Build the eager-loading query shared by vocabulary reads."""
         return select(models.Vocabulary).options(
             selectinload(models.Vocabulary.language),
-            selectinload(models.Vocabulary.vocabulary_type),
             selectinload(models.Vocabulary.chapter),
             selectinload(models.Vocabulary.categories),
             selectinload(models.Vocabulary.translations),

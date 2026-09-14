@@ -47,7 +47,6 @@ class SpanglishService:
             languages=self.repository.list_languages(),
             categories=categories,
             chapters=self.repository.list_chapters(),
-            vocabulary_types=self.repository.list_vocabulary_types(),
             selection_modes=list(QuizSelectionMode),
             question_types=list(QuizQuestionType),
         )
@@ -58,8 +57,6 @@ class SpanglishService:
         """Validate references and persist vocabulary for its authenticated user."""
         if not self.repository.get_language(payload.language_id):
             raise HTTPException(status_code=404, detail="Source language not found")
-        if not self.repository.get_vocabulary_type(payload.vocabulary_type_id):
-            raise HTTPException(status_code=404, detail="Vocabulary type not found")
         if payload.chapter_id is not None and not self.repository.get_chapter(
             payload.chapter_id
         ):
@@ -80,7 +77,6 @@ class SpanglishService:
                 text=payload.text,
                 user_id=user_id,
                 language_id=payload.language_id,
-                vocabulary_type_id=payload.vocabulary_type_id,
                 chapter_id=payload.chapter_id,
                 categories=categories,
                 translations=[item.model_dump() for item in payload.translations],
@@ -99,8 +95,6 @@ class SpanglishService:
         vocabulary = self._require_vocabulary(vocabulary_id)
         if not self.repository.get_language(payload.language_id):
             raise HTTPException(status_code=404, detail="Source language not found")
-        if not self.repository.get_vocabulary_type(payload.vocabulary_type_id):
-            raise HTTPException(status_code=404, detail="Vocabulary type not found")
         if payload.chapter_id is not None and not self.repository.get_chapter(
             payload.chapter_id
         ):
@@ -121,7 +115,6 @@ class SpanglishService:
                 vocabulary,
                 text=payload.text,
                 language_id=payload.language_id,
-                vocabulary_type_id=payload.vocabulary_type_id,
                 chapter_id=payload.chapter_id,
                 categories=categories,
                 translations=[item.model_dump() for item in payload.translations],
@@ -201,7 +194,6 @@ class SpanglishService:
             target_language_id=payload.target_language_id,
             category_ids=payload.category_ids,
             chapter_ids=payload.chapter_ids,
-            vocabulary_type_ids=payload.vocabulary_type_ids,
             limit=payload.question_count,
             selection_mode=payload.selection_mode,
         )
@@ -325,6 +317,19 @@ class SpanglishService:
             attempts=evaluations,
             advice=advice,
         )
+
+    def list_quiz_results(self, user_id, limit: int) -> list[schemas.QuizHistoryItem]:
+        """Return compact score history for an authenticated learner."""
+        return [
+            schemas.QuizHistoryItem(
+                quiz_id=quiz.id,
+                completed_at=quiz.completed_at,
+                correct=quiz.correct_count or 0,
+                total=quiz.actual_question_count or 0,
+                percentage=quiz.score_percentage or 0.0,
+            )
+            for quiz in self.repository.list_quiz_results(user_id, limit)
+        ]
 
     @staticmethod
     def _build_questions(
