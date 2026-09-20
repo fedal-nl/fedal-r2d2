@@ -1,6 +1,6 @@
 [project]
 name = "fedal-r2d2"
-version = "1.1.0"
+version = "1.2.0"
 description = "FastAPI application for managing emails, forms, and spanglish language dictionary with a quiz."
 readme = "README.md"
 requires-python = ">=3.13"
