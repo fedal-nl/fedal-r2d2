@@ -1,6 +1,6 @@
 """SQLAlchemy persistence operations for the Spanglish application."""
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from src.apps.spanglish import models
@@ -14,73 +14,172 @@ class SpanglishRepository:
         """Store the request-scoped SQLAlchemy session."""
         self.db = db
 
-    def list_languages(self) -> list[models.Language]:
+    def ensure_user_references(self, user_id) -> None:
+        """Copy global seed templates into the authenticated user's collection."""
+        for table, fields in (
+            ("languages", "name, code"),
+            ("categories", "name"),
+            ("chapters", "name"),
+        ):
+            self.db.execute(
+                text(
+                    f"INSERT INTO spanglish.{table} ({fields}, user_id) "
+                    f"SELECT {fields}, :user_id FROM spanglish.{table} "
+                    "WHERE user_id IS NULL ON CONFLICT DO NOTHING"
+                ),
+                {"user_id": user_id},
+            )
+        self.db.commit()
+
+    def list_languages(self, user_id) -> list[models.Language]:
         """Return languages ordered for stable interface controls."""
         return list(
-            self.db.scalars(select(models.Language).order_by(models.Language.name))
+            self.db.scalars(
+                select(models.Language)
+                .where(models.Language.user_id == user_id)
+                .order_by(models.Language.name)
+            )
         )
 
-    def list_categories(self) -> list[models.Category]:
+    def list_categories(self, user_id) -> list[models.Category]:
         """Return categories ordered for stable cards and menus."""
         return list(
-            self.db.scalars(select(models.Category).order_by(models.Category.name))
+            self.db.scalars(
+                select(models.Category)
+                .where(models.Category.user_id == user_id)
+                .order_by(models.Category.name)
+            )
         )
 
-    def list_chapters(self) -> list[models.Chapter]:
+    def list_chapters(self, user_id) -> list[models.Chapter]:
         """Return optional lesson chapters in stable display order."""
         return list(
-            self.db.scalars(select(models.Chapter).order_by(models.Chapter.name))
+            self.db.scalars(
+                select(models.Chapter)
+                .where(models.Chapter.user_id == user_id)
+                .order_by(models.Chapter.name)
+            )
         )
 
-    def create_language(self, name: str, code: str) -> models.Language:
-        """Persist a globally available language."""
-        language = models.Language(name=name.strip(), code=code.strip().lower())
+    def create_language(self, name: str, code: str, user_id) -> models.Language:
+        """Persist a language for one authenticated user."""
+        language = models.Language(
+            name=name.strip(), code=code.strip().lower(), user_id=user_id
+        )
         self.db.add(language)
         self.db.commit()
         self.db.refresh(language)
         return language
 
-    def create_category(self, name: str) -> models.Category:
+    def create_category(self, name: str, user_id) -> models.Category:
         """Persist a quiz and vocabulary topic."""
-        category = models.Category(name=name.strip())
+        category = models.Category(name=name.strip(), user_id=user_id)
         self.db.add(category)
         self.db.commit()
         self.db.refresh(category)
         return category
 
-    def create_chapter(self, name: str) -> models.Chapter:
+    def create_chapter(self, name: str, user_id) -> models.Chapter:
         """Persist an optional vocabulary and quiz chapter."""
-        chapter = models.Chapter(name=name.strip())
+        chapter = models.Chapter(name=name.strip(), user_id=user_id)
         self.db.add(chapter)
         self.db.commit()
         self.db.refresh(chapter)
         return chapter
 
-    def get_language(self, language_id: int) -> models.Language | None:
+    def list_artists(self, user_id) -> list[models.Artist]:
+        """List only artists owned by the authenticated learner."""
+        return list(
+            self.db.scalars(
+                select(models.Artist)
+                .where(models.Artist.user_id == user_id)
+                .order_by(models.Artist.name)
+            )
+        )
+
+    def create_artist(self, name: str, user_id) -> models.Artist:
+        """Create a performer owned by the authenticated learner."""
+        artist = models.Artist(name=name.strip(), user_id=user_id)
+        self.db.add(artist)
+        self.db.commit()
+        self.db.refresh(artist)
+        return artist
+
+    def get_artist(self, artist_id: int, user_id) -> models.Artist | None:
+        """Find an artist only within the learner's collection."""
+        return self.db.scalars(
+            select(models.Artist).where(
+                models.Artist.id == artist_id, models.Artist.user_id == user_id
+            )
+        ).first()
+
+    def list_songs(self, user_id, artist_id: int | None = None) -> list[models.Song]:
+        """List the learner's songs, optionally for one artist."""
+        query = (
+            select(models.Song)
+            .options(selectinload(models.Song.artist))
+            .where(models.Song.user_id == user_id)
+        )
+        if artist_id is not None:
+            query = query.where(models.Song.artist_id == artist_id)
+        return list(self.db.scalars(query.order_by(models.Song.title)))
+
+    def create_song(self, title: str, artist_id: int, user_id) -> models.Song:
+        """Create a user-owned title under a user-owned artist."""
+        song = models.Song(title=title.strip(), artist_id=artist_id, user_id=user_id)
+        self.db.add(song)
+        self.db.commit()
+        return self.get_song(song.id, user_id)  # type: ignore[return-value]
+
+    def get_song(self, song_id: int, user_id) -> models.Song | None:
+        """Find one song within the authenticated learner's collection."""
+        return self.db.scalars(
+            select(models.Song)
+            .options(selectinload(models.Song.artist))
+            .where(models.Song.id == song_id, models.Song.user_id == user_id)
+        ).first()
+
+    def get_language(self, language_id: int, user_id) -> models.Language | None:
         """Return one language by primary key."""
-        return self.db.get(models.Language, language_id)
+        return self.db.scalars(
+            select(models.Language).where(
+                models.Language.id == language_id,
+                models.Language.user_id == user_id,
+            )
+        ).first()
 
-    def get_chapter(self, chapter_id: int) -> models.Chapter | None:
+    def get_chapter(self, chapter_id: int, user_id) -> models.Chapter | None:
         """Return one chapter by primary key."""
-        return self.db.get(models.Chapter, chapter_id)
+        return self.db.scalars(
+            select(models.Chapter).where(
+                models.Chapter.id == chapter_id,
+                models.Chapter.user_id == user_id,
+            )
+        ).first()
 
-    def get_chapters(self, chapter_ids: list[int]) -> list[models.Chapter]:
+    def get_chapters(self, chapter_ids: list[int], user_id) -> list[models.Chapter]:
         """Return all chapters matching the provided identifiers."""
         if not chapter_ids:
             return []
         return list(
             self.db.scalars(
-                select(models.Chapter).where(models.Chapter.id.in_(chapter_ids))
+                select(models.Chapter).where(
+                    models.Chapter.id.in_(chapter_ids),
+                    models.Chapter.user_id == user_id,
+                )
             )
         )
 
-    def get_categories(self, category_ids: list[int]) -> list[models.Category]:
+    def get_categories(self, category_ids: list[int], user_id) -> list[models.Category]:
         """Return all categories matching the provided identifiers."""
         if not category_ids:
             return []
         return list(
             self.db.scalars(
-                select(models.Category).where(models.Category.id.in_(category_ids))
+                select(models.Category).where(
+                    models.Category.id.in_(category_ids),
+                    models.Category.user_id == user_id,
+                )
             )
         )
 
@@ -91,6 +190,7 @@ class SpanglishRepository:
         user_id,
         language_id: int,
         chapter_id: int | None,
+        song_id: int | None,
         categories: list[models.Category],
         translations: list[dict],
         conjugations: list[dict],
@@ -101,22 +201,29 @@ class SpanglishRepository:
             user_id=user_id,
             language_id=language_id,
             chapter_id=chapter_id,
+            song_id=song_id,
             categories=categories,
             translations=[
                 models.Translation(
-                    translation=item["text"].strip(), language_id=item["language_id"]
+                    translation=item["text"].strip(),
+                    language_id=item["language_id"],
+                    user_id=user_id,
                 )
                 for item in translations
             ],
-            verb_conjugations=[models.VerbConjugation(**item) for item in conjugations],
+            verb_conjugations=[
+                models.VerbConjugation(**item, user_id=user_id) for item in conjugations
+            ],
         )
         self.db.add(vocabulary)
         self.db.commit()
-        return self.get_vocabulary(vocabulary.id)  # type: ignore[return-value]
+        return self.get_vocabulary(vocabulary.id, user_id)  # type: ignore[return-value]
 
-    def get_vocabulary(self, vocabulary_id: int) -> models.Vocabulary | None:
+    def get_vocabulary(self, vocabulary_id: int, user_id) -> models.Vocabulary | None:
         """Return one eagerly loaded vocabulary card."""
-        query = self._vocabulary_query().where(models.Vocabulary.id == vocabulary_id)
+        query = self._vocabulary_query().where(
+            models.Vocabulary.id == vocabulary_id, models.Vocabulary.user_id == user_id
+        )
         return self.db.scalars(query).unique().first()
 
     def update_vocabulary(
@@ -126,6 +233,7 @@ class SpanglishRepository:
         text: str,
         language_id: int,
         chapter_id: int | None,
+        song_id: int | None,
         categories: list[models.Category],
         translations: list[dict],
         conjugations: list[dict],
@@ -134,29 +242,38 @@ class SpanglishRepository:
         vocabulary.text = text.strip()
         vocabulary.language_id = language_id
         vocabulary.chapter_id = chapter_id
+        vocabulary.song_id = song_id
         vocabulary.categories = categories
         vocabulary.translations = [
             models.Translation(
-                translation=item["text"].strip(), language_id=item["language_id"]
+                translation=item["text"].strip(),
+                language_id=item["language_id"],
+                user_id=vocabulary.user_id,
             )
             for item in translations
         ]
         vocabulary.verb_conjugations = [
-            models.VerbConjugation(**item) for item in conjugations
+            models.VerbConjugation(**item, user_id=vocabulary.user_id)
+            for item in conjugations
         ]
         self.db.commit()
-        return self.get_vocabulary(vocabulary.id)  # type: ignore[return-value]
+        return self.get_vocabulary(vocabulary.id, vocabulary.user_id)  # type: ignore[return-value]
 
     def delete_vocabulary(self, vocabulary: models.Vocabulary) -> None:
         """Delete a vocabulary aggregate and cascading child rows."""
         self.db.delete(vocabulary)
         self.db.commit()
 
-    def list_conjugations(self, vocabulary_id: int) -> list[models.VerbConjugation]:
+    def list_conjugations(
+        self, vocabulary_id: int, user_id
+    ) -> list[models.VerbConjugation]:
         """Return all conjugations for a vocabulary item in display order."""
         query = (
             select(models.VerbConjugation)
-            .where(models.VerbConjugation.vocabulary_id == vocabulary_id)
+            .where(
+                models.VerbConjugation.vocabulary_id == vocabulary_id,
+                models.VerbConjugation.user_id == user_id,
+            )
             .order_by(
                 models.VerbConjugation.tense,
                 models.VerbConjugation.mood,
@@ -166,20 +283,23 @@ class SpanglishRepository:
         return list(self.db.scalars(query))
 
     def get_conjugation(
-        self, vocabulary_id: int, conjugation_id: int
+        self, vocabulary_id: int, conjugation_id: int, user_id
     ) -> models.VerbConjugation | None:
         """Return a conjugation only when it belongs to the vocabulary item."""
         query = select(models.VerbConjugation).where(
             models.VerbConjugation.id == conjugation_id,
             models.VerbConjugation.vocabulary_id == vocabulary_id,
+            models.VerbConjugation.user_id == user_id,
         )
         return self.db.scalars(query).first()
 
     def create_conjugation(
-        self, vocabulary_id: int, **values: str
+        self, vocabulary_id: int, user_id, **values: str
     ) -> models.VerbConjugation:
         """Persist a new structured conjugation for existing vocabulary."""
-        conjugation = models.VerbConjugation(vocabulary_id=vocabulary_id, **values)
+        conjugation = models.VerbConjugation(
+            vocabulary_id=vocabulary_id, user_id=user_id, **values
+        )
         self.db.add(conjugation)
         self.db.commit()
         self.db.refresh(conjugation)
@@ -205,6 +325,7 @@ class SpanglishRepository:
         *,
         page: int,
         page_size: int,
+        user_id,
         language_id: int | None,
         category_id: int | None,
         chapter_id: int | None,
@@ -212,7 +333,7 @@ class SpanglishRepository:
         randomize: bool = False,
     ) -> tuple[list[models.Vocabulary], int]:
         """Return a filtered and paginated vocabulary collection with total count."""
-        filters = []
+        filters = [models.Vocabulary.user_id == user_id]
         if language_id is not None:
             filters.append(models.Vocabulary.language_id == language_id)
         if search:
@@ -239,10 +360,16 @@ class SpanglishRepository:
         )
         return list(self.db.scalars(query).unique()), total
 
-    def count_vocabulary_by_category(self) -> dict[int, int]:
+    def count_vocabulary_by_category(self, user_id) -> dict[int, int]:
         """Count vocabulary records per category for quiz builder cards."""
-        query = select(models.VocabularyCategory.category_id, func.count()).group_by(
-            models.VocabularyCategory.category_id
+        query = (
+            select(models.VocabularyCategory.category_id, func.count())
+            .join(
+                models.Vocabulary,
+                models.Vocabulary.id == models.VocabularyCategory.vocabulary_id,
+            )
+            .where(models.Vocabulary.user_id == user_id)
+            .group_by(models.VocabularyCategory.category_id)
         )
         return {category_id: count for category_id, count in self.db.execute(query)}
 
@@ -250,6 +377,7 @@ class SpanglishRepository:
         self,
         *,
         source_language_id: int,
+        user_id,
         target_language_id: int,
         category_ids: list[int],
         chapter_ids: list[int],
@@ -258,6 +386,7 @@ class SpanglishRepository:
     ) -> list[models.Vocabulary]:
         """Select eligible vocabulary using the requested filters and ordering."""
         query = self._vocabulary_query().where(
+            models.Vocabulary.user_id == user_id,
             or_(
                 and_(
                     models.Vocabulary.language_id == source_language_id,
@@ -271,7 +400,7 @@ class SpanglishRepository:
                         models.Translation.language_id == source_language_id
                     ),
                 ),
-            )
+            ),
         )
         if category_ids:
             query = query.where(
@@ -334,6 +463,7 @@ class SpanglishRepository:
         return select(models.Vocabulary).options(
             selectinload(models.Vocabulary.language),
             selectinload(models.Vocabulary.chapter),
+            selectinload(models.Vocabulary.song).selectinload(models.Song.artist),
             selectinload(models.Vocabulary.categories),
             selectinload(models.Vocabulary.translations),
             selectinload(models.Vocabulary.verb_conjugations),

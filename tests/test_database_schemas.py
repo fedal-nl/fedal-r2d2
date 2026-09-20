@@ -11,8 +11,29 @@ def test_spanglish_tables_use_spanglish_schema() -> None:
         models.Vocabulary,
         models.QuizSession,
         models.QuizAttempt,
+        models.Artist,
+        models.Song,
     )
     assert all(model.__table__.schema == "spanglish" for model in spanglish_models)
+
+
+def test_spanglish_models_record_their_owner() -> None:
+    """Keep direct ownership on every Spanglish row, including child rows."""
+    spanglish_models = (
+        models.Language,
+        models.Category,
+        models.Chapter,
+        models.Artist,
+        models.Song,
+        models.Vocabulary,
+        models.VocabularyCategory,
+        models.Translation,
+        models.VerbConjugation,
+        models.VocabularyExample,
+        models.QuizSession,
+        models.QuizAttempt,
+    )
+    assert all("user_id" in model.__table__.c for model in spanglish_models)
 
 
 def test_ai_tables_use_dedicated_ai_schema() -> None:

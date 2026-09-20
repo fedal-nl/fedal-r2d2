@@ -1,6 +1,7 @@
 """HTTP routes for the Spanglish application."""
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.apps.spanglish import schemas
@@ -26,54 +27,123 @@ def get_service(
 
 
 @router.get("/quiz-options", response_model=schemas.QuizOptionsResponse)
-def get_quiz_options(service: SpanglishService = Depends(get_service)):
+def get_quiz_options(
+    service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
+):
     """Return selectable languages, categories, types, and quiz modes."""
-    return service.get_quiz_options()
+    return service.get_quiz_options(current_user.id)
 
 
 @router.get("/languages", response_model=list[schemas.LanguageResponse])
-def list_languages(repository: SpanglishRepository = Depends(get_repository)):
+def list_languages(
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
     """List languages available to vocabulary and quiz clients."""
-    return repository.list_languages()
+    repository.ensure_user_references(current_user.id)
+    return repository.list_languages(current_user.id)
 
 
 @router.post("/languages", response_model=schemas.LanguageResponse, status_code=201)
 def create_language(
     payload: schemas.LanguageCreate,
     repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
 ):
-    """Create a language before authentication and administration are added."""
-    return repository.create_language(payload.name, payload.code)
+    """Create a language owned by the authenticated user."""
+    return repository.create_language(payload.name, payload.code, current_user.id)
 
 
 @router.get("/categories", response_model=list[schemas.ReferenceResponse])
-def list_categories(repository: SpanglishRepository = Depends(get_repository)):
+def list_categories(
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
     """List category cards in stable display order."""
-    return repository.list_categories()
+    repository.ensure_user_references(current_user.id)
+    return repository.list_categories(current_user.id)
 
 
 @router.post("/categories", response_model=schemas.ReferenceResponse, status_code=201)
 def create_category(
     payload: schemas.ReferenceCreate,
     repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a category used to filter vocabulary and quizzes."""
-    return repository.create_category(payload.name)
+    return repository.create_category(payload.name, current_user.id)
 
 
 @router.get("/chapters", response_model=list[schemas.ReferenceResponse])
-def list_chapters(repository: SpanglishRepository = Depends(get_repository)):
+def list_chapters(
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
     """List optional chapters available to vocabulary and quiz clients."""
-    return repository.list_chapters()
+    repository.ensure_user_references(current_user.id)
+    return repository.list_chapters(current_user.id)
 
 
 @router.post("/chapters", response_model=schemas.ReferenceResponse, status_code=201)
 def create_chapter(
     payload: schemas.ReferenceCreate,
     repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a chapter that may group vocabulary and quizzes."""
-    return repository.create_chapter(payload.name)
+    return repository.create_chapter(payload.name, current_user.id)
+
+
+@router.get("/artists", response_model=list[schemas.ReferenceResponse])
+def list_artists(
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """List the authenticated user's artists."""
+    return repository.list_artists(current_user.id)
+
+
+@router.post("/artists", response_model=schemas.ReferenceResponse, status_code=201)
+def create_artist(
+    payload: schemas.ReferenceCreate,
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a performer for the authenticated user."""
+    try:
+        return repository.create_artist(payload.name, current_user.id)
+    except IntegrityError as exc:
+        repository.db.rollback()
+        raise HTTPException(status_code=409, detail="Artist already exists") from exc
+
+
+@router.get("/songs", response_model=list[schemas.SongResponse])
+def list_songs(
+    artist_id: int | None = None,
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """List the authenticated user's songs, optionally by artist."""
+    return repository.list_songs(current_user.id, artist_id)
+
+
+@router.post("/songs", response_model=schemas.SongResponse, status_code=201)
+def create_song(
+    payload: schemas.SongCreate,
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a title under one of the authenticated user's artists."""
+    if repository.get_artist(payload.artist_id, current_user.id) is None:
+        raise HTTPException(status_code=404, detail="Artist not found")
+    try:
+        return repository.create_song(payload.title, payload.artist_id, current_user.id)
+    except IntegrityError as exc:
+        repository.db.rollback()
+        raise HTTPException(
+            status_code=409, detail="Song already exists for this artist"
+        ) from exc
 
 
 @router.post("/vocabulary", response_model=schemas.VocabularyResponse, status_code=201)
@@ -96,9 +166,11 @@ def list_vocabulary(
     randomize: bool = False,
     search: str | None = Query(default=None, max_length=100),
     repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
 ):
     """List filtered vocabulary cards with pagination metadata."""
     items, total = repository.list_vocabulary(
+        user_id=current_user.id,
         page=page,
         page_size=page_size,
         language_id=language_id,
@@ -115,13 +187,13 @@ def list_vocabulary(
 
 @router.get("/vocabulary/{vocabulary_id}", response_model=schemas.VocabularyResponse)
 def get_vocabulary(
-    vocabulary_id: int, repository: SpanglishRepository = Depends(get_repository)
+    vocabulary_id: int,
+    repository: SpanglishRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
 ):
     """Return one complete vocabulary card by identifier."""
-    vocabulary = repository.get_vocabulary(vocabulary_id)
+    vocabulary = repository.get_vocabulary(vocabulary_id, current_user.id)
     if vocabulary is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Vocabulary not found")
     return vocabulary
 
@@ -131,18 +203,20 @@ def update_vocabulary(
     vocabulary_id: int,
     payload: schemas.VocabularyUpdate,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ):
     """Replace a vocabulary card and its translations and conjugations."""
-    return service.update_vocabulary(vocabulary_id, payload)
+    return service.update_vocabulary(vocabulary_id, payload, current_user.id)
 
 
 @router.delete("/vocabulary/{vocabulary_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_vocabulary(
     vocabulary_id: int,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """Delete a vocabulary card and return an empty success response."""
-    service.delete_vocabulary(vocabulary_id)
+    service.delete_vocabulary(vocabulary_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -153,9 +227,10 @@ def delete_vocabulary(
 def list_conjugations(
     vocabulary_id: int,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ):
     """List all conjugations belonging to one vocabulary item."""
-    conjugations = service.list_conjugations(vocabulary_id)
+    conjugations = service.list_conjugations(vocabulary_id, current_user.id)
     return [schemas.ConjugationResponse.model_validate(item) for item in conjugations]
 
 
@@ -168,9 +243,10 @@ def create_conjugation(
     vocabulary_id: int,
     payload: schemas.ConjugationCreate,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ):
     """Add one tense, mood, pronoun, and form to existing vocabulary."""
-    return service.create_conjugation(vocabulary_id, payload)
+    return service.create_conjugation(vocabulary_id, payload, current_user.id)
 
 
 @router.put(
@@ -182,9 +258,12 @@ def update_conjugation(
     conjugation_id: int,
     payload: schemas.ConjugationUpdate,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ):
     """Replace one conjugation while enforcing vocabulary ownership."""
-    return service.update_conjugation(vocabulary_id, conjugation_id, payload)
+    return service.update_conjugation(
+        vocabulary_id, conjugation_id, payload, current_user.id
+    )
 
 
 @router.delete(
@@ -195,9 +274,10 @@ def delete_conjugation(
     vocabulary_id: int,
     conjugation_id: int,
     service: SpanglishService = Depends(get_service),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """Delete one conjugation while leaving its vocabulary item intact."""
-    service.delete_conjugation(vocabulary_id, conjugation_id)
+    service.delete_conjugation(vocabulary_id, conjugation_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

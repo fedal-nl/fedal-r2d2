@@ -34,19 +34,20 @@ class SpanglishService:
         """Receive a repository so business rules stay independently testable."""
         self.repository = repository
 
-    def get_quiz_options(self) -> schemas.QuizOptionsResponse:
+    def get_quiz_options(self, user_id) -> schemas.QuizOptionsResponse:
         """Build the metadata used by CLI menus and graphical quiz builders."""
-        counts = self.repository.count_vocabulary_by_category()
+        self.repository.ensure_user_references(user_id)
+        counts = self.repository.count_vocabulary_by_category(user_id)
         categories = [
             schemas.CategoryOption(
                 id=item.id, name=item.name, available_questions=counts.get(item.id, 0)
             )
-            for item in self.repository.list_categories()
+            for item in self.repository.list_categories(user_id)
         ]
         return schemas.QuizOptionsResponse(
-            languages=self.repository.list_languages(),
+            languages=self.repository.list_languages(user_id),
             categories=categories,
-            chapters=self.repository.list_chapters(),
+            chapters=self.repository.list_chapters(user_id),
             selection_modes=list(QuizSelectionMode),
             question_types=list(QuizQuestionType),
         )
@@ -55,19 +56,20 @@ class SpanglishService:
         self, payload: schemas.VocabularyCreate, user_id
     ) -> models.Vocabulary:
         """Validate references and persist vocabulary for its authenticated user."""
-        if not self.repository.get_language(payload.language_id):
+        if not self.repository.get_language(payload.language_id, user_id):
             raise HTTPException(status_code=404, detail="Source language not found")
         if payload.chapter_id is not None and not self.repository.get_chapter(
-            payload.chapter_id
+            payload.chapter_id, user_id
         ):
             raise HTTPException(status_code=404, detail="Chapter not found")
-        categories = self.repository.get_categories(payload.category_ids)
+        categories = self.repository.get_categories(payload.category_ids, user_id)
+        self._validate_song(payload.song_id, categories, user_id)
         if len(categories) != len(set(payload.category_ids)):
             raise HTTPException(
                 status_code=404, detail="One or more categories were not found"
             )
         for translation in payload.translations:
-            if not self.repository.get_language(translation.language_id):
+            if not self.repository.get_language(translation.language_id, user_id):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Translation language {translation.language_id} not found",
@@ -78,6 +80,7 @@ class SpanglishService:
                 user_id=user_id,
                 language_id=payload.language_id,
                 chapter_id=payload.chapter_id,
+                song_id=payload.song_id,
                 categories=categories,
                 translations=[item.model_dump() for item in payload.translations],
                 conjugations=[item.model_dump() for item in payload.conjugations],
@@ -89,23 +92,24 @@ class SpanglishService:
             ) from exc
 
     def update_vocabulary(
-        self, vocabulary_id: int, payload: schemas.VocabularyUpdate
+        self, vocabulary_id: int, payload: schemas.VocabularyUpdate, user_id
     ) -> models.Vocabulary:
         """Validate and replace an existing vocabulary aggregate."""
-        vocabulary = self._require_vocabulary(vocabulary_id)
-        if not self.repository.get_language(payload.language_id):
+        vocabulary = self._require_vocabulary(vocabulary_id, user_id)
+        if not self.repository.get_language(payload.language_id, user_id):
             raise HTTPException(status_code=404, detail="Source language not found")
         if payload.chapter_id is not None and not self.repository.get_chapter(
-            payload.chapter_id
+            payload.chapter_id, user_id
         ):
             raise HTTPException(status_code=404, detail="Chapter not found")
-        categories = self.repository.get_categories(payload.category_ids)
+        categories = self.repository.get_categories(payload.category_ids, user_id)
+        self._validate_song(payload.song_id, categories, user_id)
         if len(categories) != len(set(payload.category_ids)):
             raise HTTPException(
                 status_code=404, detail="One or more categories were not found"
             )
         for translation in payload.translations:
-            if not self.repository.get_language(translation.language_id):
+            if not self.repository.get_language(translation.language_id, user_id):
                 raise HTTPException(
                     status_code=404,
                     detail=f"Translation language {translation.language_id} not found",
@@ -116,6 +120,7 @@ class SpanglishService:
                 text=payload.text,
                 language_id=payload.language_id,
                 chapter_id=payload.chapter_id,
+                song_id=payload.song_id,
                 categories=categories,
                 translations=[item.model_dump() for item in payload.translations],
                 conjugations=[item.model_dump() for item in payload.conjugations],
@@ -126,24 +131,26 @@ class SpanglishService:
                 status_code=409, detail="Vocabulary or translation already exists"
             ) from exc
 
-    def delete_vocabulary(self, vocabulary_id: int) -> None:
+    def delete_vocabulary(self, vocabulary_id: int, user_id) -> None:
         """Delete an existing vocabulary aggregate."""
-        vocabulary = self._require_vocabulary(vocabulary_id)
+        vocabulary = self._require_vocabulary(vocabulary_id, user_id)
         self.repository.delete_vocabulary(vocabulary)
 
-    def list_conjugations(self, vocabulary_id: int) -> list[models.VerbConjugation]:
+    def list_conjugations(
+        self, vocabulary_id: int, user_id
+    ) -> list[models.VerbConjugation]:
         """Return conjugations after confirming the vocabulary item exists."""
-        self._require_vocabulary(vocabulary_id)
-        return self.repository.list_conjugations(vocabulary_id)
+        self._require_vocabulary(vocabulary_id, user_id)
+        return self.repository.list_conjugations(vocabulary_id, user_id)
 
     def create_conjugation(
-        self, vocabulary_id: int, payload: schemas.ConjugationCreate
+        self, vocabulary_id: int, payload: schemas.ConjugationCreate, user_id
     ) -> models.VerbConjugation:
         """Add a conjugation to existing vocabulary and report duplicates cleanly."""
-        self._require_vocabulary(vocabulary_id)
+        self._require_vocabulary(vocabulary_id, user_id)
         try:
             return self.repository.create_conjugation(
-                vocabulary_id, **payload.model_dump()
+                vocabulary_id, user_id, **payload.model_dump()
             )
         except IntegrityError as exc:
             self.repository.db.rollback()
@@ -157,9 +164,10 @@ class SpanglishService:
         vocabulary_id: int,
         conjugation_id: int,
         payload: schemas.ConjugationUpdate,
+        user_id,
     ) -> models.VerbConjugation:
         """Replace an existing conjugation that belongs to the vocabulary item."""
-        conjugation = self._require_conjugation(vocabulary_id, conjugation_id)
+        conjugation = self._require_conjugation(vocabulary_id, conjugation_id, user_id)
         try:
             return self.repository.update_conjugation(
                 conjugation, **payload.model_dump()
@@ -171,26 +179,29 @@ class SpanglishService:
                 detail="This tense, mood, and pronoun already exist for the vocabulary item",
             ) from exc
 
-    def delete_conjugation(self, vocabulary_id: int, conjugation_id: int) -> None:
+    def delete_conjugation(
+        self, vocabulary_id: int, conjugation_id: int, user_id
+    ) -> None:
         """Delete an existing conjugation owned by the vocabulary item."""
-        conjugation = self._require_conjugation(vocabulary_id, conjugation_id)
+        conjugation = self._require_conjugation(vocabulary_id, conjugation_id, user_id)
         self.repository.delete_conjugation(conjugation)
 
     def generate_quiz(
         self, payload: schemas.QuizCreateRequest, user_id
     ) -> schemas.QuizResponse:
         """Generate all requested questions and persist their immutable snapshot."""
-        if not self.repository.get_language(payload.source_language_id):
+        if not self.repository.get_language(payload.source_language_id, user_id):
             raise HTTPException(status_code=404, detail="Source language not found")
-        if not self.repository.get_language(payload.target_language_id):
+        if not self.repository.get_language(payload.target_language_id, user_id):
             raise HTTPException(status_code=404, detail="Target language not found")
-        chapters = self.repository.get_chapters(payload.chapter_ids)
+        chapters = self.repository.get_chapters(payload.chapter_ids, user_id)
         if len(chapters) != len(set(payload.chapter_ids)):
             raise HTTPException(
                 status_code=404, detail="One or more chapters were not found"
             )
         rows = self.repository.select_quiz_vocabulary(
             source_language_id=payload.source_language_id,
+            user_id=user_id,
             target_language_id=payload.target_language_id,
             category_ids=payload.category_ids,
             chapter_ids=payload.chapter_ids,
@@ -281,6 +292,7 @@ class SpanglishService:
             )
             attempt_models.append(
                 models.QuizAttempt(
+                    user_id=user_id,
                     vocabulary_id=question["vocabulary_id"],
                     question_id=submitted.question_id,
                     answer=answer_value,
@@ -425,18 +437,35 @@ class SpanglishService:
             "total": total,
         }
 
-    def _require_vocabulary(self, vocabulary_id: int) -> models.Vocabulary:
+    def _validate_song(
+        self, song_id: int | None, categories: list[models.Category], user_id
+    ) -> None:
+        """Require songs only on Song-category vocabulary and enforce ownership."""
+        is_song = any(item.name.casefold() in {"song", "songs"} for item in categories)
+        if is_song and song_id is None:
+            raise HTTPException(
+                status_code=422, detail="A song is required for the Song category"
+            )
+        if song_id is not None and (
+            not is_song or not self.repository.get_song(song_id, user_id)
+        ):
+            raise HTTPException(status_code=404, detail="Song not found")
+
+    def _require_vocabulary(self, vocabulary_id: int, user_id) -> models.Vocabulary:
         """Return vocabulary or raise the API's standard not-found response."""
-        vocabulary = self.repository.get_vocabulary(vocabulary_id)
+        vocabulary = self.repository.get_vocabulary(vocabulary_id, user_id)
         if vocabulary is None:
             raise HTTPException(status_code=404, detail="Vocabulary not found")
         return vocabulary
 
     def _require_conjugation(
-        self, vocabulary_id: int, conjugation_id: int
+        self, vocabulary_id: int, conjugation_id: int, user_id
     ) -> models.VerbConjugation:
         """Return an owned conjugation or raise a non-leaking not-found response."""
-        conjugation = self.repository.get_conjugation(vocabulary_id, conjugation_id)
+        self._require_vocabulary(vocabulary_id, user_id)
+        conjugation = self.repository.get_conjugation(
+            vocabulary_id, conjugation_id, user_id
+        )
         if conjugation is None:
             raise HTTPException(status_code=404, detail="Conjugation not found")
         return conjugation
