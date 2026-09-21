@@ -31,6 +31,22 @@ class LanguageResponse(ReferenceResponse):
     code: str
 
 
+class SongCreate(BaseModel):
+    """Create a title under one of the user's artists."""
+
+    title: str = Field(min_length=1, max_length=200)
+    artist_id: int
+
+
+class SongResponse(BaseModel):
+    """Describe a selectable, user-owned song."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    artist: ReferenceResponse
+
+
 class CategoryOption(ReferenceResponse):
     """Return a category with its available translation question count."""
 
@@ -96,6 +112,7 @@ class VocabularyCreate(BaseModel):
     text: str = Field(min_length=1, max_length=500)
     language_id: int
     chapter_id: int | None = None
+    song_id: int | None = None
     category_ids: list[int] = Field(default_factory=list)
     translations: list[TranslationCreate] = Field(min_length=1)
     conjugations: list[ConjugationCreate] = Field(default_factory=list)
@@ -107,6 +124,7 @@ class VocabularyUpdate(BaseModel):
     text: str = Field(min_length=1, max_length=500)
     language_id: int
     chapter_id: int | None = None
+    song_id: int | None = None
     category_ids: list[int] = Field(default_factory=list)
     translations: list[TranslationCreate] = Field(min_length=1)
     conjugations: list[ConjugationCreate] = Field(default_factory=list)
@@ -120,6 +138,7 @@ class VocabularyResponse(BaseModel):
     text: str
     language: LanguageResponse
     chapter: ReferenceResponse | None
+    song: SongResponse | None
     categories: list[ReferenceResponse]
     translations: list[TranslationResponse]
     verb_conjugations: list[ConjugationResponse]

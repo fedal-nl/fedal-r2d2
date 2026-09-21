@@ -78,8 +78,12 @@ the shared module.
 Spanglish is a shared backend for terminal, desktop, web, and mobile interfaces.
 The interfaces own presentation and local quiz progress. FastAPI owns vocabulary,
 question selection, authoritative scoring, result history, and future AI advice.
-Authentication is intentionally deferred; reference and vocabulary rows are global
-until user identity is introduced.
+Spanglish resources are scoped to the authenticated user. Seeded languages and
+categories are copied into each user's collection; ownerless seed rows serve
+only as templates and are never returned by the options endpoints. Existing
+vocabulary references are remapped to each owner's copies by the migration.
+New references, vocabulary, artists, songs, and quizzes are owned by the
+authenticated user. Dependent records store the same owner as their parent.
 
 ```mermaid
 flowchart LR
@@ -128,6 +132,8 @@ The available endpoints are:
 | `GET/POST` | `/api/v1/spanglish/languages` | List or create languages |
 | `GET/POST` | `/api/v1/spanglish/categories` | List or create quiz categories |
 | `GET/POST` | `/api/v1/spanglish/chapters` | List or create optional lesson chapters |
+| `GET/POST` | `/api/v1/spanglish/artists` | List or create user-owned artists |
+| `GET/POST` | `/api/v1/spanglish/songs` | List or create user-owned songs; GET accepts `artist_id` |
 | `GET/POST` | `/api/v1/spanglish/vocabulary` | Browse or create vocabulary cards |
 | `GET` | `/api/v1/spanglish/vocabulary/{id}` | Fetch one complete vocabulary card |
 | `PUT/DELETE` | `/api/v1/spanglish/vocabulary/{id}` | Replace or delete a vocabulary card |
@@ -135,6 +141,13 @@ The available endpoints are:
 | `PUT/DELETE` | `/api/v1/spanglish/vocabulary/{id}/conjugations/{conjugation_id}` | Replace or delete a verb form |
 | `POST` | `/api/v1/spanglish/quizzes` | Generate and return a complete quiz |
 | `POST` | `/api/v1/spanglish/quizzes/{id}/results` | Submit all answers and receive a score |
+
+When creating vocabulary in the `Songs` category, include a `song_id` from the
+authenticated user's song list. Create an artist first with `POST /artists`
+(`{"name": "Artist"}`), then a title with `POST /songs`
+(`{"title": "Song title", "artist_id": 1}`). Omit `song_id` for all
+other categories. Cross-user artist, song, vocabulary, and quiz IDs return 404.
+Apply migration `d92b1a6c4e71` before using the new endpoints.
 
 Quiz creation accepts source and target languages, zero or more category IDs,
 zero or more chapter IDs, zero or more vocabulary type IDs, a question count,

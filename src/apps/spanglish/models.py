@@ -37,8 +37,8 @@ class Language(Base):
         ForeignKey("public.users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     __table_args__ = (
-        UniqueConstraint("name", name="uq_language_name"),
-        UniqueConstraint("code", name="uq_language_code"),
+        UniqueConstraint("user_id", "name", name="uq_languages_user_name"),
+        UniqueConstraint("user_id", "code", name="uq_languages_user_code"),
         {"schema": SPANGGLISH_SCHEMA},
     )
 
@@ -62,7 +62,7 @@ class Category(Base):
         secondary="spanglish.vocabulary_categories", back_populates="categories"
     )
     __table_args__ = (
-        UniqueConstraint("name", name="uq_category_name"),
+        UniqueConstraint("user_id", "name", name="uq_categories_user_name"),
         {"schema": SPANGGLISH_SCHEMA},
     )
 
@@ -84,7 +84,47 @@ class Chapter(Base):
     )
     vocabulary: Mapped[list["Vocabulary"]] = relationship(back_populates="chapter")
     __table_args__ = (
-        UniqueConstraint("name", name="uq_chapter_name"),
+        UniqueConstraint("user_id", "name", name="uq_chapters_user_name"),
+        {"schema": SPANGGLISH_SCHEMA},
+    )
+
+
+class Artist(Base):
+    """A user-owned performer with independently selectable songs."""
+
+    __tablename__ = "artists"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    songs: Mapped[list["Song"]] = relationship(back_populates="artist")
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_artist_user_name"),
+        {"schema": SPANGGLISH_SCHEMA},
+    )
+
+
+class Song(Base):
+    """A user-owned title associated with one performer."""
+
+    __tablename__ = "songs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    artist_id: Mapped[int] = mapped_column(
+        ForeignKey("spanglish.artists.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    artist: Mapped[Artist] = relationship(back_populates="songs")
+    vocabularies: Mapped[list["Vocabulary"]] = relationship(back_populates="song")
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "artist_id", "title", name="uq_song_user_artist_title"
+        ),
         {"schema": SPANGGLISH_SCHEMA},
     )
 
@@ -106,6 +146,9 @@ class Vocabulary(Base):
     chapter_id: Mapped[int | None] = mapped_column(
         ForeignKey("spanglish.chapters.id", ondelete="SET NULL"), index=True
     )
+    song_id: Mapped[int | None] = mapped_column(
+        ForeignKey("spanglish.songs.id", ondelete="SET NULL"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
@@ -114,6 +157,7 @@ class Vocabulary(Base):
     )
     language: Mapped[Language] = relationship()
     chapter: Mapped[Chapter | None] = relationship(back_populates="vocabulary")
+    song: Mapped[Song | None] = relationship(back_populates="vocabularies")
     translations: Mapped[list["Translation"]] = relationship(
         back_populates="vocabulary", cascade="all, delete-orphan"
     )
@@ -148,6 +192,9 @@ class VocabularyCategory(Base):
     category_id: Mapped[int] = mapped_column(
         ForeignKey("spanglish.categories.id", ondelete="CASCADE"), primary_key=True
     )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
@@ -163,6 +210,9 @@ class VerbConjugation(Base):
         ForeignKey("spanglish.vocabulary.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     tense: Mapped[str] = mapped_column(String, nullable=False, default="present")
     mood: Mapped[str] = mapped_column(String, nullable=False, default="indicative")
@@ -190,6 +240,9 @@ class VocabularyExample(Base):
         nullable=False,
         index=True,
     )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     ai_agent_id: Mapped[int | None] = mapped_column(
         ForeignKey("ai.ai_agents.id", ondelete="SET NULL"), index=True
     )
@@ -214,6 +267,9 @@ class Translation(Base):
         ForeignKey("spanglish.vocabulary.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     language_id: Mapped[int] = mapped_column(
         ForeignKey("spanglish.languages.id", ondelete="CASCADE"),
@@ -276,6 +332,9 @@ class QuizAttempt(Base):
         ForeignKey("spanglish.quiz_sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     vocabulary_id: Mapped[int] = mapped_column(
         ForeignKey("spanglish.vocabulary.id", ondelete="CASCADE"),
