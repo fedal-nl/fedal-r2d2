@@ -78,12 +78,11 @@ the shared module.
 Spanglish is a shared backend for terminal, desktop, web, and mobile interfaces.
 The interfaces own presentation and local quiz progress. FastAPI owns vocabulary,
 question selection, authoritative scoring, result history, and future AI advice.
-Spanglish resources are scoped to the authenticated user. Seeded languages and
-categories are copied into each user's collection; ownerless seed rows serve
-only as templates and are never returned by the options endpoints. Existing
-vocabulary references are remapped to each owner's copies by the migration.
-New references, vocabulary, artists, songs, and quizzes are owned by the
-authenticated user. Dependent records store the same owner as their parent.
+Spanglish resources are scoped to the authenticated user. Languages, categories,
+chapters, artists, vocabulary, and quiz sessions are ownership roots. Songs and
+other dependent records derive their owner through their artist, vocabulary, or
+quiz session. The initial references are copied from the first account when a
+new account first requests its options.
 
 ```mermaid
 flowchart LR
@@ -147,7 +146,7 @@ authenticated user's song list. Create an artist first with `POST /artists`
 (`{"name": "Artist"}`), then a title with `POST /songs`
 (`{"title": "Song title", "artist_id": 1}`). Omit `song_id` for all
 other categories. Cross-user artist, song, vocabulary, and quiz IDs return 404.
-Apply migration `d92b1a6c4e71` before using the new endpoints.
+Apply migrations through `e84f6a1c2b90` before using the new endpoints.
 
 Quiz creation accepts source and target languages, zero or more category IDs,
 zero or more chapter IDs, zero or more vocabulary type IDs, a question count,

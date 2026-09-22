@@ -17,23 +17,37 @@ def test_spanglish_tables_use_spanglish_schema() -> None:
     assert all(model.__table__.schema == "spanglish" for model in spanglish_models)
 
 
-def test_spanglish_models_record_their_owner() -> None:
-    """Keep direct ownership on every Spanglish row, including child rows."""
-    spanglish_models = (
+def test_spanglish_models_keep_ownership_only_on_aggregate_roots() -> None:
+    """Derive child ownership while retaining it on independently queried roots."""
+    owned_models = (
         models.Language,
         models.Category,
         models.Chapter,
         models.Artist,
-        models.Song,
         models.Vocabulary,
+        models.QuizSession,
+    )
+    derived_models = (
+        models.Song,
         models.VocabularyCategory,
         models.Translation,
         models.VerbConjugation,
         models.VocabularyExample,
-        models.QuizSession,
         models.QuizAttempt,
     )
-    assert all("user_id" in model.__table__.c for model in spanglish_models)
+    assert all("user_id" in model.__table__.c for model in owned_models)
+    assert all("user_id" not in model.__table__.c for model in derived_models)
+
+
+def test_every_spanglish_column_has_a_description() -> None:
+    """Keep ORM and generated database documentation meaningful."""
+    tables = {
+        mapper.local_table
+        for mapper in models.Base.registry.mappers
+        if mapper.local_table.schema == models.SPANGGLISH_SCHEMA
+    }
+    assert tables
+    assert all(column.comment for table in tables for column in table.columns)
 
 
 def test_ai_tables_use_dedicated_ai_schema() -> None:

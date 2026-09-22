@@ -106,6 +106,16 @@ class ConjugationUpdate(BaseModel):
     form: str = Field(min_length=1, max_length=100)
 
 
+class ExampleResponse(BaseModel):
+    """Return a persisted translated usage example."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    example: str
+    translation: str
+    created_at: datetime
+
+
 class VocabularyCreate(BaseModel):
     """Create vocabulary and all data needed for its first quiz card."""
 
@@ -142,6 +152,7 @@ class VocabularyResponse(BaseModel):
     categories: list[ReferenceResponse]
     translations: list[TranslationResponse]
     verb_conjugations: list[ConjugationResponse]
+    examples: list[ExampleResponse]
     created_at: datetime
 
 
