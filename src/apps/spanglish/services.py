@@ -150,7 +150,7 @@ class SpanglishService:
         self._require_vocabulary(vocabulary_id, user_id)
         try:
             return self.repository.create_conjugation(
-                vocabulary_id, user_id, **payload.model_dump()
+                vocabulary_id, **payload.model_dump()
             )
         except IntegrityError as exc:
             self.repository.db.rollback()
@@ -292,7 +292,6 @@ class SpanglishService:
             )
             attempt_models.append(
                 models.QuizAttempt(
-                    user_id=user_id,
                     vocabulary_id=question["vocabulary_id"],
                     question_id=submitted.question_id,
                     answer=answer_value,

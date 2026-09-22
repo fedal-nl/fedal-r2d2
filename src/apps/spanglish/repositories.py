@@ -15,7 +15,7 @@ class SpanglishRepository:
         self.db = db
 
     def ensure_user_references(self, user_id) -> None:
-        """Copy global seed templates into the authenticated user's collection."""
+        """Copy reference defaults from the first account into a new account."""
         for table, fields in (
             ("languages", "name, code"),
             ("categories", "name"),
@@ -25,7 +25,9 @@ class SpanglishRepository:
                 text(
                     f"INSERT INTO spanglish.{table} ({fields}, user_id) "
                     f"SELECT {fields}, :user_id FROM spanglish.{table} "
-                    "WHERE user_id IS NULL ON CONFLICT DO NOTHING"
+                    "WHERE user_id = ("
+                    "SELECT id FROM public.users ORDER BY created_at, id LIMIT 1"
+                    ") AND user_id <> :user_id ON CONFLICT DO NOTHING"
                 ),
                 {"user_id": user_id},
             )
@@ -117,8 +119,9 @@ class SpanglishRepository:
         """List the learner's songs, optionally for one artist."""
         query = (
             select(models.Song)
+            .join(models.Song.artist)
             .options(selectinload(models.Song.artist))
-            .where(models.Song.user_id == user_id)
+            .where(models.Artist.user_id == user_id)
         )
         if artist_id is not None:
             query = query.where(models.Song.artist_id == artist_id)
@@ -126,7 +129,7 @@ class SpanglishRepository:
 
     def create_song(self, title: str, artist_id: int, user_id) -> models.Song:
         """Create a user-owned title under a user-owned artist."""
-        song = models.Song(title=title.strip(), artist_id=artist_id, user_id=user_id)
+        song = models.Song(title=title.strip(), artist_id=artist_id)
         self.db.add(song)
         self.db.commit()
         return self.get_song(song.id, user_id)  # type: ignore[return-value]
@@ -135,8 +138,9 @@ class SpanglishRepository:
         """Find one song within the authenticated learner's collection."""
         return self.db.scalars(
             select(models.Song)
+            .join(models.Song.artist)
             .options(selectinload(models.Song.artist))
-            .where(models.Song.id == song_id, models.Song.user_id == user_id)
+            .where(models.Song.id == song_id, models.Artist.user_id == user_id)
         ).first()
 
     def get_language(self, language_id: int, user_id) -> models.Language | None:
@@ -207,13 +211,10 @@ class SpanglishRepository:
                 models.Translation(
                     translation=item["text"].strip(),
                     language_id=item["language_id"],
-                    user_id=user_id,
                 )
                 for item in translations
             ],
-            verb_conjugations=[
-                models.VerbConjugation(**item, user_id=user_id) for item in conjugations
-            ],
+            verb_conjugations=[models.VerbConjugation(**item) for item in conjugations],
         )
         self.db.add(vocabulary)
         self.db.commit()
@@ -248,13 +249,11 @@ class SpanglishRepository:
             models.Translation(
                 translation=item["text"].strip(),
                 language_id=item["language_id"],
-                user_id=vocabulary.user_id,
             )
             for item in translations
         ]
         vocabulary.verb_conjugations = [
-            models.VerbConjugation(**item, user_id=vocabulary.user_id)
-            for item in conjugations
+            models.VerbConjugation(**item) for item in conjugations
         ]
         self.db.commit()
         return self.get_vocabulary(vocabulary.id, vocabulary.user_id)  # type: ignore[return-value]
@@ -272,7 +271,6 @@ class SpanglishRepository:
             select(models.VerbConjugation)
             .where(
                 models.VerbConjugation.vocabulary_id == vocabulary_id,
-                models.VerbConjugation.user_id == user_id,
             )
             .order_by(
                 models.VerbConjugation.tense,
@@ -289,17 +287,14 @@ class SpanglishRepository:
         query = select(models.VerbConjugation).where(
             models.VerbConjugation.id == conjugation_id,
             models.VerbConjugation.vocabulary_id == vocabulary_id,
-            models.VerbConjugation.user_id == user_id,
         )
         return self.db.scalars(query).first()
 
     def create_conjugation(
-        self, vocabulary_id: int, user_id, **values: str
+        self, vocabulary_id: int, **values: str
     ) -> models.VerbConjugation:
         """Persist a new structured conjugation for existing vocabulary."""
-        conjugation = models.VerbConjugation(
-            vocabulary_id=vocabulary_id, user_id=user_id, **values
-        )
+        conjugation = models.VerbConjugation(vocabulary_id=vocabulary_id, **values)
         self.db.add(conjugation)
         self.db.commit()
         self.db.refresh(conjugation)
@@ -467,4 +462,5 @@ class SpanglishRepository:
             selectinload(models.Vocabulary.categories),
             selectinload(models.Vocabulary.translations),
             selectinload(models.Vocabulary.verb_conjugations),
+            selectinload(models.Vocabulary.examples),
         )

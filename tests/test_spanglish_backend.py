@@ -51,7 +51,9 @@ class FakeRepository:
         self.categories = [self.category]
         self.rows = []
         self.quiz = None
-        self.vocabulary = SimpleNamespace(id=7)
+        self.vocabulary = SimpleNamespace(
+            id=7, song_id=None, categories=[self.category]
+        )
         self.conjugation = SimpleNamespace(
             id=8,
             vocabulary_id=7,
@@ -117,7 +119,7 @@ class FakeRepository:
             return self.conjugation
         return None
 
-    def create_conjugation(self, vocabulary_id, user_id, **values):
+    def create_conjugation(self, vocabulary_id, **values):
         return SimpleNamespace(id=9, vocabulary_id=vocabulary_id, **values)
 
     def update_conjugation(self, conjugation, **values):
@@ -580,6 +582,10 @@ def test_reference_options_are_private_to_authenticated_user() -> None:
     assert all(
         call.args[1] == {"user_id": USER_ID} for call in db.execute.call_args_list
     )
+    assert all(
+        "ORDER BY created_at, id LIMIT 1" in str(call.args[0])
+        for call in db.execute.call_args_list
+    )
     for list_method in (
         repository.list_languages,
         repository.list_categories,
@@ -668,7 +674,7 @@ def test_repository_conjugation_crud() -> None:
     assert repository.list_conjugations(7, USER_ID) == [conjugation]
     assert repository.get_conjugation(7, 8, USER_ID) is conjugation
     created = repository.create_conjugation(
-        7, USER_ID, tense="present", mood="indicative", pronoun="tú", form="hablas"
+        7, tense="present", mood="indicative", pronoun="tú", form="hablas"
     )
     assert created.form == "hablas"
     updated = repository.update_conjugation(created, form="hablaste")
