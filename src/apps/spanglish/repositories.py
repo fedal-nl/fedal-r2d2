@@ -245,6 +245,14 @@ class SpanglishRepository:
         vocabulary.chapter_id = chapter_id
         vocabulary.song_id = song_id
         vocabulary.categories = categories
+
+        # Flush removals before inserting replacements. Otherwise PostgreSQL can
+        # evaluate a new child row against the identical row scheduled for
+        # deletion and raise a false uniqueness conflict during an update.
+        vocabulary.translations.clear()
+        vocabulary.verb_conjugations.clear()
+        self.db.flush()
+
         vocabulary.translations = [
             models.Translation(
                 translation=item["text"].strip(),
