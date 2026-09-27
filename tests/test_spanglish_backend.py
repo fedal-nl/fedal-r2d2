@@ -652,6 +652,7 @@ def test_repository_updates_and_deletes_vocabulary_aggregate() -> None:
             }
         ],
     )
+    db.flush.assert_called_once()
     assert updated.text == "hablar"
     assert updated.translations[0].translation == "speak"
     repository.delete_vocabulary(vocabulary)
