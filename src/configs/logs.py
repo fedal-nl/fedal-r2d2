@@ -17,7 +17,6 @@ log_file = os.path.join(LOG_DIR, "app.log")
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
-
     "formatters": {
         "default": {
             "format": "[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
@@ -28,7 +27,6 @@ LOGGING_CONFIG = {
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
-
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
@@ -44,19 +42,38 @@ LOGGING_CONFIG = {
             "backupCount": 5,
         },
     },
-
     "root": {
         "handlers": ["console", "file"],
         "level": "DEBUG",
+    },
+    # Uvicorn installs non-propagating handlers before importing the app. Route
+    # its startup, error, and access records through the same dated formatter.
+    "loggers": {
+        "uvicorn": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "uvicorn.error": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "uvicorn.access": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 
 # Suppress the python_multipart.multipart logger to WARNING instead of DEBUG
 logging.getLogger("python_multipart.multipart").setLevel(logging.WARNING)
 
+
 def setup_logging():
     """Setup logging using Python dict config."""
-    
+
     os.makedirs(LOG_DIR, exist_ok=True)
-    
+
     logging.config.dictConfig(LOGGING_CONFIG)
