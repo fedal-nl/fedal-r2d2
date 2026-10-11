@@ -46,13 +46,29 @@ def get_email_profile(application: str) -> EmailProfile:
         "email_to": f"EMAIL_TO{suffix}",
     }
     values = {field: os.getenv(name, "") for field, name in variable_names.items()}
-    missing = [name for field, name in variable_names.items() if not values[field]]
+    missing = [
+        name
+        for field, name in variable_names.items()
+        if field != "email_to" and not values[field]
+    ]
     if missing:
         raise ValueError(
             f"Missing email configuration for '{normalized}': {', '.join(missing)}"
         )
 
     return EmailProfile(application=normalized, **values)
+
+
+def get_email_api_token(application: str) -> str:
+    """Resolve the API-to-API bearer token assigned to one application."""
+    normalized = application.strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", normalized):
+        raise ValueError("Invalid email application identifier")
+    variable_name = f"{normalized.upper()}_TOKEN"
+    token = os.getenv(variable_name, "")
+    if not token:
+        raise ValueError(f"Missing email API token for '{normalized}': {variable_name}")
+    return token
 
 
 @lru_cache

@@ -114,6 +114,22 @@ def test_send_to_uses_explicit_recipient() -> None:
     assert log.receiver == "learner@example.com"
 
 
+def test_fixed_recipient_is_required_only_for_fixed_delivery() -> None:
+    import pytest
+
+    profile = EmailProfile(
+        application="spanglish",
+        resend_api_key="re_test",
+        email_from="R2D2 <noreply@example.com>",
+        email_to="",
+    )
+    service = EmailService(
+        FakeSession(), SuccessfulProvider(), lambda application: profile
+    )
+    with pytest.raises(ValueError, match="EMAIL_TO_SPANGLISH"):
+        service.send(MESSAGE)
+
+
 def test_email_queries() -> None:
     session = FakeSession()
     log = EmailService(session, SuccessfulProvider(), profile_resolver).send(MESSAGE)

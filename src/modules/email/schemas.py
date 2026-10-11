@@ -13,3 +13,9 @@ class EmailSendRequest(BaseModel):
         if not self.html and not self.text:
             raise ValueError("Either html or text must be provided")
         return self
+
+
+class UserEmailSendRequest(EmailSendRequest):
+    """Send transactional email to a recipient selected by a trusted API."""
+
+    to: EmailStr

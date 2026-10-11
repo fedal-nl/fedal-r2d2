@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db
-from src.dependencies.auth import validate_token
+from src.dependencies.auth import validate_email_application_token, validate_token
 from src.enums import EmailStatus
-from src.modules.email.schemas import EmailSendRequest
+from src.modules.email.schemas import EmailSendRequest, UserEmailSendRequest
 from src.modules.email.service import EmailMessage, EmailService
 
 router = APIRouter()
@@ -23,8 +23,26 @@ def send_email_route(
     return {"id": log.id, "status": log.status}
 
 
+@router.post("/send-user-email")
+def send_user_email_route(
+    request: UserEmailSendRequest,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+):
+    """Send email to a dynamic recipient from an authenticated backend API."""
+    try:
+        validate_email_application_token(request.application, authorization)
+        message_values = request.model_dump(exclude={"to"})
+        log = EmailService(db).send_to(EmailMessage(**message_values), str(request.to))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"id": log.id, "status": log.status}
+
+
 @router.get("/sent-emails")
-def get_sent_emails(db: Session = Depends(get_db), status: EmailStatus = EmailStatus.SENT):
+def get_sent_emails(
+    db: Session = Depends(get_db), status: EmailStatus = EmailStatus.SENT
+):
     return EmailService(db).get_by_status(status)
 
 

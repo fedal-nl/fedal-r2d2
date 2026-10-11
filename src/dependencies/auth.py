@@ -3,6 +3,7 @@ This module contains the auth dependencies like the token validation.
 """
 
 import logging
+import secrets
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.models import User
 from src.auth.services import decode_access_token
-from src.core.config import get_settings
+from src.core.config import get_email_api_token, get_settings
 from src.core.database import get_db
 from src.modules.recaptcha.service import verify_captcha_token
 
@@ -21,7 +22,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def validate_token(authorization: str = Header(None)):
     """Validate the provided API token."""
-    logger.info(f"Validating API token for authorization header {authorization}")
+    logger.info("Validating legacy API token")
     if authorization != f"Bearer {get_settings().api_token}":
         # logger.warning(f"Invalid API token provided: {authorization}")
         raise HTTPException(
@@ -30,6 +31,26 @@ def validate_token(authorization: str = Header(None)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return True
+
+
+def validate_email_application_token(
+    application: str, authorization: str | None
+) -> None:
+    """Authenticate an API client against its application-scoped email token."""
+    scheme, separator, supplied_token = (authorization or "").partition(" ")
+    if separator != " " or scheme.lower() != "bearer" or not supplied_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid application token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    expected_token = get_email_api_token(application)
+    if not secrets.compare_digest(supplied_token, expected_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid application token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def get_current_user(
@@ -53,4 +74,9 @@ def get_current_user(
     return user
 
 
-__all__ = ["get_current_user", "validate_token", "verify_captcha_token"]
+__all__ = [
+    "get_current_user",
+    "validate_email_application_token",
+    "validate_token",
+    "verify_captcha_token",
+]
