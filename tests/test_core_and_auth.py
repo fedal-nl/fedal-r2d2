@@ -1,9 +1,9 @@
 import pytest
 from fastapi import HTTPException
 
-from src.core.config import get_email_profile, get_settings
+from src.core.config import get_email_api_token, get_email_profile, get_settings
 from src.core.database import get_db
-from src.dependencies.auth import validate_token
+from src.dependencies.auth import validate_email_application_token, validate_token
 
 
 def test_settings_are_loaded() -> None:
@@ -16,6 +16,29 @@ def test_application_email_profile_is_loaded() -> None:
     profile = get_email_profile("zaansrecht")
     assert profile.resend_api_key == "re_zaansrecht_test"
     assert profile.email_to == "owner@zaansrecht.example"
+
+
+def test_dynamic_email_profile_and_token_are_loaded() -> None:
+    profile = get_email_profile("aicentralhub")
+    assert profile.resend_api_key == "re_aicentralhub_test"
+    assert profile.email_to == ""
+    assert get_email_api_token("aicentralhub") == "aicentralhub-test-token"
+    validate_email_application_token("aicentralhub", "Bearer aicentralhub-test-token")
+
+
+@pytest.mark.parametrize(
+    "authorization", [None, "", "Basic value", "Bearer", "Bearer wrong"]
+)
+def test_application_email_token_rejects_invalid_value(authorization) -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        validate_email_application_token("aicentralhub", authorization)
+    assert exc_info.value.status_code == 401
+
+
+def test_application_email_token_reports_missing_configuration(monkeypatch) -> None:
+    monkeypatch.delenv("UNKNOWN_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="UNKNOWN_TOKEN"):
+        get_email_api_token("unknown")
 
 
 @pytest.mark.parametrize("application", ["", "../secret", "bad-name", "1app"])

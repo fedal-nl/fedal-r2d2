@@ -6,7 +6,7 @@ from starlette.requests import Request
 
 from src.enums import EmailStatus, FormStatus
 from src.modules.email import routers as email_routers
-from src.modules.email.schemas import EmailSendRequest
+from src.modules.email.schemas import EmailSendRequest, UserEmailSendRequest
 from src.modules.forms import routers as form_routers
 from src.modules.forms.schemas import FormStatusUpdate, ZaansrechtFormCreate
 
@@ -34,6 +34,11 @@ def test_email_router_functions(monkeypatch) -> None:
         def send(self, message):
             return SimpleNamespace(id=1, status=EmailStatus.SENT)
 
+        def send_to(self, message, receiver):
+            assert message.application == "aicentralhub"
+            assert receiver == "user@example.com"
+            return SimpleNamespace(id=2, status=EmailStatus.SENT)
+
         def get_by_status(self, status):
             return [status]
 
@@ -54,7 +59,19 @@ def test_email_router_functions(monkeypatch) -> None:
         "id": 1,
         "status": EmailStatus.SENT,
     }
-    assert email_routers.get_sent_emails(object(), EmailStatus.SENT) == [EmailStatus.SENT]
+    user_payload = UserEmailSendRequest(
+        application="aicentralhub",
+        to="user@example.com",
+        reply_to="support@aicentralhub.example",
+        subject="Subject",
+        html="<p>Body</p>",
+    )
+    assert email_routers.send_user_email_route(
+        user_payload, object(), "Bearer aicentralhub-test-token"
+    ) == {"id": 2, "status": EmailStatus.SENT}
+    assert email_routers.get_sent_emails(object(), EmailStatus.SENT) == [
+        EmailStatus.SENT
+    ]
     assert email_routers.get_email_status(1, object())["status"] == EmailStatus.SENT
     assert email_routers.get_all_emails(object()) == {"all_emails": ["email"]}
     with pytest.raises(HTTPException) as exc_info:
@@ -90,9 +107,12 @@ async def test_create_form_router(monkeypatch) -> None:
         email="test@example.com",
         terms_accepted=True,
     )
-    assert await form_routers.create_zaansrecht_form(
-        request(), payload, object(), "captcha-token"
-    ) is created
+    assert (
+        await form_routers.create_zaansrecht_form(
+            request(), payload, object(), "captcha-token"
+        )
+        is created
+    )
 
 
 @pytest.mark.asyncio
@@ -148,9 +168,12 @@ def test_form_list_and_status_routes(monkeypatch) -> None:
     monkeypatch.setattr(form_routers, "FormService", FakeFormService)
     result = form_routers.get_forms(request(), object(), FormStatus.NEW)
     assert len(result.forms) == 1
-    assert form_routers.update_form_status(
-        1, FormStatusUpdate(new_status=FormStatus.NEW), object()
-    ) is form
+    assert (
+        form_routers.update_form_status(
+            1, FormStatusUpdate(new_status=FormStatus.NEW), object()
+        )
+        is form
+    )
     FakeFormService.missing = True
     with pytest.raises(HTTPException) as exc_info:
         form_routers.update_form_status(

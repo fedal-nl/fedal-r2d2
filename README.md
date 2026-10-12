@@ -275,17 +275,97 @@ the operating-system credential store instead. A later Keycloak integration can
 map Keycloak's `(issuer, sub)` to the same local user without changing resource
 ownership.
 
-Each frontend selects a server-side email profile through the request's
-`application` field. The identifier is converted to an uppercase environment
-suffix. For example, `zaansrecht` uses `RESEND_API_KEY_ZAANSRECHT`,
-`EMAIL_FROM_ZAANSRECHT`, and `EMAIL_TO_ZAANSRECHT`. Add another frontend by
-configuring the same three variables with its uppercase identifier. Application
-identifiers may contain lowercase letters, numbers, and underscores.
+## Email service
 
-The frontend never sends the API key, sender, or recipient. `EMAIL_FROM_*` must
-be a sender allowed by the corresponding Resend account.
+The email API provides application-specific transactional delivery through
+[Resend](https://resend.com). It is suitable for contact forms, notifications,
+confirmations, and other messages where each customer needs an isolated sender,
+recipient, API key, and HTML design.
 
-Example request:
+### Features
+
+- Separate Resend configuration for every customer or application.
+- Server-controlled sender addresses, fixed-recipient delivery for forms, and
+  application-token-protected dynamic recipients for trusted backend APIs.
+- HTML, plain text, or multipart-style requests containing both versions.
+- Customer-owned HTML templates: render the template in the customer
+  application and submit the resulting HTML.
+- A validated `Reply-To` address, allowing the configured recipient to reply
+  directly to the person who submitted a form.
+- Direct delivery through the Resend SDK without SMTP or a delivery cron job.
+- A database audit record for every attempt, including its status, Resend
+  message ID, error, application, sender, recipient, subject, and body.
+- Status and history endpoints for operational inspection.
+
+### Customer onboarding
+
+1. Choose a lowercase application identifier. It must start with a letter and
+   may contain lowercase letters, numbers, and underscores, for example
+   `acme`, `customer_portal`, or `website2`.
+2. Create or select a Resend account and verify the sending domain in Resend.
+3. Create a Resend API key with permission to send from that domain.
+4. Add the customer's profile to the API environment. The application
+   identifier is converted to an uppercase suffix:
+
+   ```dotenv
+   RESEND_API_KEY_ACME=re_customer_api_key
+   EMAIL_FROM_ACME=Acme Website <noreply@mail.acme.example>
+   EMAIL_TO_ACME=contact@acme.example
+   ```
+
+5. Restart or redeploy the API after changing its environment.
+6. Give the customer's trusted backend the email API URL, its application
+   identifier, and the shared `API_TOKEN` using a secure secret channel.
+
+`EMAIL_FROM_*` must use a sender accepted by the corresponding Resend account.
+`EMAIL_TO_*` is the fixed destination for that customer. Resend credentials,
+`API_TOKEN`, sender, and recipient must never be embedded in browser JavaScript
+or another public client. A website should call this endpoint from its backend
+or server-side function.
+
+The unsuffixed variables `RESEND_API_KEY`, `EMAIL_FROM`, and `EMAIL_TO` are used
+only when the application identifier is `general`.
+
+For an API such as AI Central Hub that sends transactional email to its own
+registered users, configure an application-specific bearer token and omit the
+fixed recipient:
+
+```dotenv
+AICENTRALHUB_TOKEN=generate-with-openssl-rand-hex-32
+RESEND_API_KEY_AICENTRALHUB=re_customer_api_key
+EMAIL_FROM_AICENTRALHUB=AI Central Hub <noreply@mail.aicentralhub.example>
+```
+
+### Using a custom template
+
+The public endpoint accepts rendered content; it does not accept a template
+filename or template variables. This keeps the customer's template lifecycle
+independent from the API. Render the customer's template in their application,
+then send the completed HTML in the `html` property. User-provided values must
+be HTML-escaped by that renderer.
+
+For example, a customer can render the following template before calling the
+API:
+
+```html
+<!doctype html>
+<html lang="en">
+  <body>
+    <h1>New website enquiry</h1>
+    <p><strong>Name:</strong> {{ escaped_name }}</p>
+    <p><strong>Message:</strong></p>
+    <p>{{ escaped_message }}</p>
+  </body>
+</html>
+```
+
+Applications implemented inside this repository can alternatively store Jinja
+templates below `src` and render them with `EmailTemplateRenderer`. The bundled
+renderer supports template inheritance and automatically escapes HTML/XML
+values. Rendering is an application concern; the email endpoint still receives
+the resulting HTML.
+
+### Send an email
 
 ```http
 POST /api/v1/email/send-email
@@ -293,18 +373,103 @@ Authorization: Bearer <API_TOKEN>
 Content-Type: application/json
 
 {
-  "application": "zaansrecht",
+  "application": "acme",
   "reply_to": "visitor@example.com",
-  "subject": "New contact request",
-  "html": "<p>Hello from the contact form</p>"
+  "subject": "New website enquiry",
+  "html": "<h1>New website enquiry</h1><p>Hello from the contact form.</p>",
+  "text": "New website enquiry\n\nHello from the contact form."
 }
 ```
 
-The body may contain `html`, `text`, or both. At least one is required.
+Equivalent `curl` request:
 
-Email is submitted directly to Resend. There is no SMTP configuration and no
-email-delivery cron job. Every attempt is stored in `public.email_logs` with its
-application, provider message ID, status, and any provider error.
+```bash
+curl --request POST "https://api.example.com/api/v1/email/send-email" \
+  --header "Authorization: Bearer ${API_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "application": "acme",
+    "reply_to": "visitor@example.com",
+    "subject": "New website enquiry",
+    "html": "<h1>New website enquiry</h1><p>Hello from the contact form.</p>",
+    "text": "New website enquiry\n\nHello from the contact form."
+  }'
+```
+
+The body may contain `html`, `text`, or both; at least one non-empty body is
+required. `reply_to` must be a valid email address, and `subject` is required.
+
+A successful API call returns the audit-log identifier and delivery result:
+
+```json
+{
+  "id": 123,
+  "status": "SENT"
+}
+```
+
+If Resend rejects delivery, the request is still recorded and the response has
+status `FAILED`. The provider error is stored in the email log for diagnostics.
+A missing customer profile returns `400`, invalid request data returns `422`,
+and a missing or incorrect bearer token returns `401`.
+
+### Send to a registered application user
+
+Trusted backend APIs use the dynamic-recipient endpoint. The application name
+selects both `{APPLICATION}_TOKEN` and the matching Resend profile; a token for
+one application cannot authenticate another application's request.
+
+```bash
+curl --request POST "http://localhost:8000/api/v1/email/send-user-email" \
+  --header "Authorization: Bearer ${AICENTRALHUB_TOKEN}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "application": "aicentralhub",
+    "to": "registered-user@example.com",
+    "reply_to": "support@aicentralhub.example",
+    "subject": "Your AI Central Hub notification",
+    "html": "<h1>Your notification</h1><p>Rendered customer HTML.</p>",
+    "text": "Your AI Central Hub notification"
+  }'
+```
+
+The caller must render the complete HTML before sending it. The email API
+validates `to` and `reply_to`, authenticates with `AICENTRALHUB_TOKEN`, and then
+uses `RESEND_API_KEY_AICENTRALHUB` and `EMAIL_FROM_AICENTRALHUB`. It does not
+require `EMAIL_TO_AICENTRALHUB` because the authenticated backend supplies the
+registered user's address.
+
+### Delivery and audit endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/email/send-email` | Send rendered HTML/text using an application profile |
+| `POST` | `/api/v1/email/send-user-email` | Send to a dynamic recipient using an application token |
+| `GET` | `/api/v1/email/email-status/{email_id}` | Read one audit record's current status |
+| `GET` | `/api/v1/email/sent-emails?status=SENT` | List records filtered by delivery status |
+| `GET` | `/api/v1/email/all-emails` | List all email audit records |
+
+The send endpoint requires `Authorization: Bearer <API_TOKEN>`. In API v1, the
+three read endpoints do not require that token. Their records may contain
+message content and personal data, so restrict them with private networking or
+an authenticated API gateway and never expose them through a public frontend.
+
+Every delivery attempt is stored in `public.email_logs`. The states used by the
+service include `SENDING`, `SENT`, and `FAILED`; successful records also contain
+the Resend message ID.
+
+### Production checklist
+
+- Verify the customer's sending domain in Resend.
+- Store all API keys and tokens in the deployment's secret manager.
+- Use a different Resend API key for each customer where possible.
+- Keep `EMAIL_TO_*` and `EMAIL_FROM_*` under server control.
+- Render and HTML-escape all customer-supplied template values.
+- Send both HTML and text bodies for better email-client compatibility.
+- Monitor failed audit records and API logs.
+- Do not log or expose the bearer token.
+
+## Form security
 
 reCAPTCHA remains required for form submission. Full tokens are never logged or
 stored; only a shortened audit representation is saved.

@@ -66,6 +66,13 @@ class EmailService:
 
     def send(self, message: EmailMessage) -> EmailLog:
         profile: EmailProfile = self.profile_resolver(message.application)
+        if not profile.email_to:
+            suffix = (
+                ""
+                if message.application == "general"
+                else f"_{message.application.upper()}"
+            )
+            raise ValueError(f"Missing fixed email recipient: EMAIL_TO{suffix}")
         return self._send(message, profile, profile.email_to)
 
     def send_to(self, message: EmailMessage, receiver: str) -> EmailLog:
