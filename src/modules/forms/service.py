@@ -4,6 +4,7 @@ It includes functionalities for different types of forms, such as ZaansrechtForm
 Also it provides methods to query and manipulate form data stored in the database.
 Besides basic CRUD operations, it uses the email service to send notifications based on form submissions.
 """
+
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -17,21 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 class FormService:
-    def __init__(self, db: Session, template_renderer: EmailTemplateRenderer | None = None):
+    def __init__(
+        self, db: Session, template_renderer: EmailTemplateRenderer | None = None
+    ):
         self.db = db
         self.template_renderer = template_renderer or EmailTemplateRenderer()
 
     def create_zaansrecht_form(
-            self,
-            full_name: str,
-            email: str,
-            terms_accepted: bool,
-            telephone: str|None = None,
-            description: str|None = None,
-            subject: str|None = None,
-            meeting_datetime: datetime | None = None,
-            meeting_type: str|None = None
-        ) -> ZaansrechtForm:
+        self,
+        full_name: str,
+        email: str,
+        terms_accepted: bool,
+        telephone: str | None = None,
+        description: str | None = None,
+        subject: str | None = None,
+        meeting_datetime: datetime | None = None,
+        meeting_type: str | None = None,
+    ) -> ZaansrechtForm:
         """Create and save a new Zaansrecht form submission."""
         # before creating the instance of the form, convert the captcha token but only the first 5 and last five characters.
         # altered_captcha_token = f"{captcha_token[:5]}...{captcha_token[-5:]}"
@@ -53,19 +56,25 @@ class FormService:
         logger.info("Created Zaansrecht form with ID %d", form.id)
         return form
 
-    def get_forms_by_status_or_all(self, status: FormStatus|None = None):
+    def get_forms_by_status_or_all(self, status: FormStatus | None = None):
         """Retrieve all forms with a specific status or all forms if status is None."""
         logger.info("Retrieving forms with status: %s", status)
         if status is None:
             forms = self.db.query(ZaansrechtForm).all()
         else:
-            forms = self.db.query(ZaansrechtForm).filter(ZaansrechtForm.status == status).all()
+            forms = (
+                self.db.query(ZaansrechtForm)
+                .filter(ZaansrechtForm.status == status)
+                .all()
+            )
         logger.info("Retrieved %d forms with status %s", len(forms), status)
         return forms
 
     def update_form_status(self, form_id: int, new_status: FormStatus):
         """Update the status of a specific form."""
-        form = self.db.query(ZaansrechtForm).filter(ZaansrechtForm.id == form_id).first()
+        form = (
+            self.db.query(ZaansrechtForm).filter(ZaansrechtForm.id == form_id).first()
+        )
         if form:
             form.status = new_status
             self.db.commit()
@@ -73,7 +82,7 @@ class FormService:
             return form
         logger.warning("Form with ID %d not found for status update", form_id)
         return None
-    
+
     def send_form_notification(self, form: ZaansrechtForm):
         """Send a notification email upon form submission."""
         email_service = EmailService(self.db)
@@ -91,7 +100,10 @@ class FormService:
             {"label": "Beschrijving", "value": form.description or "Niet opgegeven"},
             {"label": "Afspraak", "value": meeting_datetime},
             {"label": "Type afspraak", "value": form.meeting_type or "Niet opgegeven"},
-            {"label": "Voorwaarden geaccepteerd", "value": "Ja" if form.terms_accepted else "Nee"},
+            {
+                "label": "Voorwaarden geaccepteerd",
+                "value": "Ja" if form.terms_accepted else "Nee",
+            },
         )
         html = self.template_renderer.render(
             "modules/forms/templates/zaansrecht_email.html",
@@ -100,30 +112,33 @@ class FormService:
         )
         text = "\n".join(f"{field['label']}: {field['value']}" for field in fields)
 
-        log = email_service.send(EmailMessage(
-            application="zaansrecht",
-            reply_to=str(form.email),
-            subject=subject,
-            text=text,
-            html=html,
-        ))
+        log = email_service.send(
+            EmailMessage(
+                application="zaansrecht",
+                subject=subject,
+                text=text,
+                html=html,
+            )
+        )
         logger.info("Processed notification email %d for form %d", log.id, form.id)
         return log
 
 
 class FormSubmissionLogService:
     """Service to handle logging of form submissions. It is tightly coupled with form submissions to track metadata."""
+
     def __init__(self, db: Session, form_id: int, **kwargs):
         self.db = db
         self.form_id = form_id
         self.kwargs = kwargs
 
-    def log_form_submission(self) -> FormSubmissionLog|None:
+    def log_form_submission(self) -> FormSubmissionLog | None:
         """Log a form submission event."""
 
-        x_forwarded_for = self._filter_x_forwarded_for(self.kwargs.get("x_forwarded_for"))
+        x_forwarded_for = self._filter_x_forwarded_for(
+            self.kwargs.get("x_forwarded_for")
+        )
         captcha_token = self._shorten_captcha_token(self.kwargs.get("captcha_token"))
-        
 
         log_entry = FormSubmissionLog(
             form_id=self.form_id,
@@ -131,28 +146,32 @@ class FormSubmissionLogService:
             referrer=self.kwargs.get("referrer"),
             x_forwarded_for=x_forwarded_for,
             x_real_ip=self.kwargs.get("x_real_ip"),
-            captcha_token=captcha_token
+            captcha_token=captcha_token,
         )
         try:
             self.db.add(log_entry)
             self.db.commit()
             self.db.refresh(log_entry)
-            logger.info("Logged submission for form ID %d with log ID %d", self.form_id, log_entry.id)
+            logger.info(
+                "Logged submission for form ID %d with log ID %d",
+                self.form_id,
+                log_entry.id,
+            )
             return log_entry
         except Exception as e:
             logger.error("Failed to log submission for form ID %d: %s", self.form_id, e)
             self.db.rollback()
             return None
 
-    def _filter_x_forwarded_for(self, x_forwarded_for: str|None) -> list[str]:
+    def _filter_x_forwarded_for(self, x_forwarded_for: str | None) -> list[str]:
         """Convert a comma-separated X-Forwarded-For string into a list without spaces."""
         if x_forwarded_for:
             ip_list = [ip.strip() for ip in x_forwarded_for.split(",")]
             logger.debug("Parsed X-Forwarded-For: %s", ip_list)
             return ip_list
         return []
-    
-    def _shorten_captcha_token(self, captcha_token: str|None) -> str|None:
+
+    def _shorten_captcha_token(self, captcha_token: str | None) -> str | None:
         """Shorten the captcha token for logging purposes."""
         if captcha_token and len(captcha_token) > 10:
             shortened = f"{captcha_token[:5]}...{captcha_token[-5:]}"
