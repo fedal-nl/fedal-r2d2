@@ -205,7 +205,6 @@ class AuthService:
         EmailService(self.db).send_to(
             EmailMessage(
                 application="spanglish",
-                reply_to=email,
                 subject="Reset your R2D2 password",
                 text=(
                     "Use this password reset token in the Spanglish CLI. "

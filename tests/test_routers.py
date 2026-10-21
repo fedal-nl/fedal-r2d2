@@ -51,7 +51,6 @@ def test_email_router_functions(monkeypatch) -> None:
     monkeypatch.setattr(email_routers, "EmailService", FakeEmailService)
     payload = EmailSendRequest(
         application="spanglish",
-        reply_to="reply@example.com",
         subject="Subject",
         html="<p>Body</p>",
     )
@@ -62,7 +61,6 @@ def test_email_router_functions(monkeypatch) -> None:
     user_payload = UserEmailSendRequest(
         application="aicentralhub",
         to="user@example.com",
-        reply_to="support@aicentralhub.example",
         subject="Subject",
         html="<p>Body</p>",
     )

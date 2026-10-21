@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-API_URL = os.getenv("R2D2_API_URL", "http://127.0.0.1:8000/api/v1").rstrip("/")
+API_URL = os.getenv("R2D2_API_URL", "http://127.0.0.1:8002/api/v1").rstrip("/")
 TOKEN_FILE = Path(
     os.getenv("R2D2_TOKEN_FILE", str(Path.home() / ".config/r2d2/tokens.json"))
 )

@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +9,7 @@ from src.modules.email.schemas import EmailSendRequest, UserEmailSendRequest
 from src.modules.email.service import EmailMessage, EmailService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/send-email")

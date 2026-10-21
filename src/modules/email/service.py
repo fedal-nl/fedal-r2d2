@@ -17,7 +17,6 @@ _resend_lock = Lock()
 @dataclass(frozen=True)
 class EmailMessage:
     application: str
-    reply_to: str
     subject: str
     text: str | None = None
     html: str | None = None
@@ -38,18 +37,28 @@ class ResendEmailProvider:
             "from": sender,
             "to": [receiver],
             "subject": message.subject,
-            "reply_to": message.reply_to,
             "tags": [{"name": "application", "value": message.application}],
         }
         if message.html:
             payload["html"] = message.html
         if message.text:
             payload["text"] = message.text
+        logger.debug(
+            "Resend payload prepared application=%s has_html=%s has_text=%s "
+            "html_length=%s text_length=%s",
+            message.application,
+            bool(message.html),
+            bool(message.text),
+            len(message.html or ""),
+            len(message.text or ""),
+        )
         # The SDK keeps its API key in module-level state. Keep assignment and
         # delivery atomic so concurrent applications cannot exchange keys.
         with _resend_lock:
+            logger.debug("Calling Resend API application=%s", message.application)
             resend.api_key = self.api_key
             response = resend.Emails.send(payload)
+        logger.debug("Resend API response received application=%s", message.application)
         return str(response["id"])
 
 
@@ -65,6 +74,10 @@ class EmailService:
         self.profile_resolver = profile_resolver
 
     def send(self, message: EmailMessage) -> EmailLog:
+        logger.debug(
+            "Resolving fixed-recipient email profile application=%s",
+            message.application,
+        )
         profile: EmailProfile = self.profile_resolver(message.application)
         if not profile.email_to:
             suffix = (
@@ -77,6 +90,10 @@ class EmailService:
 
     def send_to(self, message: EmailMessage, receiver: str) -> EmailLog:
         """Send application email to an explicitly selected recipient."""
+        logger.debug(
+            "Resolving dynamic-recipient email profile application=%s",
+            message.application,
+        )
         profile: EmailProfile = self.profile_resolver(message.application)
         return self._send(message, profile, receiver)
 
@@ -87,7 +104,7 @@ class EmailService:
 
         log = EmailLog(
             application=message.application,
-            sender=message.reply_to,
+            sender=profile.email_from,
             receiver=receiver,
             subject=message.subject,
             body=message.html or message.text,
@@ -96,6 +113,21 @@ class EmailService:
         self.db.add(log)
         self.db.flush()
 
+        logger.debug(
+            "Email audit row created application=%s email_log_id=%s "
+            "provider=%s delivery_mode=%s",
+            message.application,
+            log.id,
+            type(provider).__name__,
+            "custom" if self.provider is not None else "resend",
+        )
+
+        logger.info(
+            "Email delivery started application=%s email_log_id=%s",
+            message.application,
+            log.id,
+        )
+
         try:
             log.provider_message_id = provider.send(
                 sender=profile.email_from,
@@ -103,15 +135,30 @@ class EmailService:
                 message=message,
             )
             log.status = EmailStatus.SENT
+            logger.info(
+                "Email delivery succeeded application=%s email_log_id=%s "
+                "provider_message_id=%s",
+                message.application,
+                log.id,
+                log.provider_message_id,
+            )
         except Exception as exc:
             log.status = EmailStatus.FAILED
             log.error_message = str(exc)
             logger.exception(
-                "Resend failed for %s email log %s", message.application, log.id
+                "Email delivery failed application=%s email_log_id=%s",
+                message.application,
+                log.id,
             )
 
         self.db.commit()
         self.db.refresh(log)
+        logger.debug(
+            "Email audit row persisted application=%s email_log_id=%s status=%s",
+            message.application,
+            log.id,
+            log.status,
+        )
         return log
 
     def get_by_status(self, status: EmailStatus) -> list[EmailLog]:

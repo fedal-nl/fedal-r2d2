@@ -1,3 +1,5 @@
+import logging
+
 from src.core.config import EmailProfile
 from src.enums import EmailStatus
 from src.modules.email.service import EmailMessage, EmailService
@@ -67,27 +69,47 @@ def profile_resolver(application):
 
 MESSAGE = EmailMessage(
     application="spanglish",
-    reply_to="visitor@example.com",
     subject="Contact",
     text="Hello",
 )
 
 
-def test_send_records_resend_success() -> None:
+def test_send_records_resend_success(caplog) -> None:
     session = FakeSession()
-    log = EmailService(session, SuccessfulProvider(), profile_resolver).send(MESSAGE)
+    with caplog.at_level(logging.DEBUG, logger="src.modules.email.service"):
+        log = EmailService(session, SuccessfulProvider(), profile_resolver).send(
+            MESSAGE
+        )
     assert log.status == EmailStatus.SENT
     assert log.provider_message_id == "resend-message-id"
     assert log.application == "spanglish"
     assert session.commits == 1
+    assert "Email delivery started application=spanglish email_log_id=42" in caplog.text
+    assert (
+        "Email delivery succeeded application=spanglish email_log_id=42" in caplog.text
+    )
+    assert (
+        "Resolving fixed-recipient email profile application=spanglish" in caplog.text
+    )
+    assert (
+        "Email audit row created application=spanglish email_log_id=42" in caplog.text
+    )
+    assert (
+        "Email audit row persisted application=spanglish email_log_id=42" in caplog.text
+    )
+    assert "owner@example.com" not in caplog.text
+    assert MESSAGE.text not in caplog.text
 
 
-def test_send_records_resend_failure_without_losing_log() -> None:
+def test_send_records_resend_failure_without_losing_log(caplog) -> None:
     session = FakeSession()
-    log = EmailService(session, FailedProvider(), profile_resolver).send(MESSAGE)
+    with caplog.at_level(logging.ERROR, logger="src.modules.email.service"):
+        log = EmailService(session, FailedProvider(), profile_resolver).send(MESSAGE)
     assert log.status == EmailStatus.FAILED
     assert log.error_message == "provider unavailable"
     assert session.commits == 1
+    assert "Email delivery failed application=spanglish email_log_id=42" in caplog.text
+    assert "owner@example.com" not in caplog.text
 
 
 def test_send_uses_application_specific_profile() -> None:
@@ -162,6 +184,7 @@ def test_resend_provider(monkeypatch) -> None:
         == "resend-id"
     )
     assert sent["tags"] == [{"name": "application", "value": "spanglish"}]
+    assert "reply_to" not in sent
 
 
 def test_resend_provider_requires_api_key() -> None:
@@ -181,7 +204,6 @@ def test_html_body_is_sent_and_logged() -> None:
 
     message = EmailMessage(
         application="spanglish",
-        reply_to="visitor@example.com",
         subject="HTML message",
         html="<h1>Hello</h1>",
     )

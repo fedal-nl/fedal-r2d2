@@ -196,10 +196,16 @@ a data-preserving Alembic migration that creates that schema.
 
 ## Configuration
 
-Create `.env` with these variables:
+Copy the tracked environment template and replace its placeholder values:
+
+```bash
+cp .env.example .env
+```
+
+The template documents the complete configuration. Its core variables include:
 
 ```dotenv
-DATABASE_URL=postgresql://user:password@host:5432/database
+DATABASE_URL=postgresql://user:password@localhost:5433/database
 API_TOKEN=replace-me
 JWT_SECRET_KEY=generate-a-long-random-value
 JWT_ISSUER=fedal-r2d2
@@ -290,8 +296,8 @@ recipient, API key, and HTML design.
 - HTML, plain text, or multipart-style requests containing both versions.
 - Customer-owned HTML templates: render the template in the customer
   application and submit the resulting HTML.
-- A validated `Reply-To` address, allowing the configured recipient to reply
-  directly to the person who submitted a form.
+- Server-controlled reply handling: the application-specific `EMAIL_FROM_*`
+  address is used when a recipient replies.
 - Direct delivery through the Resend SDK without SMTP or a delivery cron job.
 - A database audit record for every attempt, including its status, Resend
   message ID, error, application, sender, recipient, subject, and body.
@@ -374,7 +380,6 @@ Content-Type: application/json
 
 {
   "application": "acme",
-  "reply_to": "visitor@example.com",
   "subject": "New website enquiry",
   "html": "<h1>New website enquiry</h1><p>Hello from the contact form.</p>",
   "text": "New website enquiry\n\nHello from the contact form."
@@ -389,7 +394,6 @@ curl --request POST "https://api.example.com/api/v1/email/send-email" \
   --header "Content-Type: application/json" \
   --data '{
     "application": "acme",
-    "reply_to": "visitor@example.com",
     "subject": "New website enquiry",
     "html": "<h1>New website enquiry</h1><p>Hello from the contact form.</p>",
     "text": "New website enquiry\n\nHello from the contact form."
@@ -397,7 +401,10 @@ curl --request POST "https://api.example.com/api/v1/email/send-email" \
 ```
 
 The body may contain `html`, `text`, or both; at least one non-empty body is
-required. `reply_to` must be a valid email address, and `subject` is required.
+required, and `subject` is required. Callers do not provide `reply_to`. The
+application name selects `EMAIL_FROM_<APPLICATION>`, and replies use that
+configured sender address because the service does not override Resend's
+Reply-To header.
 
 A successful API call returns the audit-log identifier and delivery result:
 
@@ -420,13 +427,12 @@ selects both `{APPLICATION}_TOKEN` and the matching Resend profile; a token for
 one application cannot authenticate another application's request.
 
 ```bash
-curl --request POST "http://localhost:8000/api/v1/email/send-user-email" \
+curl --request POST "http://localhost:8002/api/v1/email/send-user-email" \
   --header "Authorization: Bearer ${AICENTRALHUB_TOKEN}" \
   --header "Content-Type: application/json" \
   --data '{
     "application": "aicentralhub",
     "to": "registered-user@example.com",
-    "reply_to": "support@aicentralhub.example",
     "subject": "Your AI Central Hub notification",
     "html": "<h1>Your notification</h1><p>Rendered customer HTML.</p>",
     "text": "Your AI Central Hub notification"
@@ -434,9 +440,10 @@ curl --request POST "http://localhost:8000/api/v1/email/send-user-email" \
 ```
 
 The caller must render the complete HTML before sending it. The email API
-validates `to` and `reply_to`, authenticates with `AICENTRALHUB_TOKEN`, and then
-uses `RESEND_API_KEY_AICENTRALHUB` and `EMAIL_FROM_AICENTRALHUB`. It does not
-require `EMAIL_TO_AICENTRALHUB` because the authenticated backend supplies the
+validates `to`, authenticates with `AICENTRALHUB_TOKEN`, and then uses
+`RESEND_API_KEY_AICENTRALHUB` and `EMAIL_FROM_AICENTRALHUB`. Replies go to the
+configured `EMAIL_FROM_AICENTRALHUB` address. It does not require
+`EMAIL_TO_AICENTRALHUB` because the authenticated backend supplies the
 registered user's address.
 
 ### Delivery and audit endpoints
@@ -490,6 +497,23 @@ The development Compose stack includes PostgreSQL 18 with a persistent
 `postgres_data` volume. The `.env` `DATABASE_URL` uses `localhost`, allowing
 host-side Alembic commands such as `make upgrade` to connect to it. Inside
 Compose, the API receives an override using the `postgres` service hostname.
+
+The local stack uses conflict-free host ports while retaining the standard
+ports inside its containers:
+
+| Service | Host address | Container port |
+| --- | --- | --- |
+| API | `http://127.0.0.1:8002` | `8000` |
+| PostgreSQL | `127.0.0.1:5433` | `5432` |
+
+If `.env` explicitly defines `API_HOST_PORT`, `POSTGRES_PORT`, or
+`DATABASE_URL`, update those values to `8002`, `5433`, and a PostgreSQL URL
+using port `5433`, respectively. Explicit environment values override the
+Compose defaults. Different ports can still be selected when starting Compose:
+
+```bash
+API_HOST_PORT=8012 POSTGRES_PORT=5443 docker compose up
+```
 
 To start only the database and apply migrations:
 
