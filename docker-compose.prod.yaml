@@ -9,3 +9,11 @@ services:
       - .env.prod
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8001}:8000"
+    networks:
+      - default
+      - aicentralhub
+
+networks:
+  aicentralhub:
+    external: true
+    name: aicentralhub
