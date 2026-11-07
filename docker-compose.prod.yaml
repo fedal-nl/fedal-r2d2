@@ -1,7 +1,7 @@
 services:
   api:
     container_name: fedal-api-r2d2
-    image: ${IMAGE_REPOSITORY:-ghcr.io/fedal-nl/fedal-r2d2}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPOSITORY:-ghcr.io/fedal-nl/fedal-r2d2}:${IMAGE_TAG:?Set IMAGE_TAG to a release tag such as v1.3.3}
     pull_policy: always
     command: uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped

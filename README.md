@@ -528,12 +528,27 @@ To remove the local database data as well as its container, run
 
 ## Production deployment
 
-Successful pushes to `main` publish two images to GitHub Container Registry:
+Pushing a bump2version Git tag publishes one immutable image to GitHub Container
+Registry. The Git tag must match the version in `pyproject.toml`:
 
-- `ghcr.io/fedal-nl/fedal-r2d2:latest`
-- `ghcr.io/fedal-nl/fedal-r2d2:<commit-sha>`
+- Git tag: `v1.3.3`
+- Image: `ghcr.io/fedal-nl/fedal-r2d2:v1.3.3`
 
-Create `.env.prod` on the production host, then deploy the latest image:
+After running a version command, push both its commit and tag:
+
+```bash
+make patch  # or make minor / make major
+git push --follow-tags origin main
+```
+
+Normal pushes to `main` still build and test the Docker image, but do not publish
+it. No `latest` image is published.
+
+Create `.env.prod` on the production host and set the release tag, then deploy:
+
+```dotenv
+IMAGE_TAG=v1.3.3
+```
 
 ```bash
 make deploy
@@ -559,10 +574,10 @@ To use another host port:
 API_HOST_PORT=8010 make deploy
 ```
 
-Deploy a specific immutable image version with:
+You can also select the immutable image version for one deployment command:
 
 ```bash
-IMAGE_TAG=<commit-sha> make deploy
+IMAGE_TAG=v1.3.3 make deploy
 ```
 
 If the GHCR package is private, authenticate the production host once with a

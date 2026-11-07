@@ -2,7 +2,7 @@
 
 .PHONY: help up down deploy prod-upgrade prod-down prod-logs test lint migrate upgrade downgrade current history stamp patch minor major clean
 
-PROD_COMPOSE := docker compose -f docker-compose.prod.yaml
+PROD_COMPOSE := docker compose --env-file .env.prod -f docker-compose.prod.yaml
 
 # ---------------------------------
 # Application start command
